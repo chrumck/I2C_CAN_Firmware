@@ -31,14 +31,13 @@
 
 #define  MAX_RECV_CAN_LEN       16          // BUF FOR CAN FRAME RECEIVING
 
-unsigned char can_frame_dta[MAX_RECV_CAN_LEN][16]; // Buffer allows for 16 received can messages 
-int cnt_can_frame_dta = 0;
-int index_can_frame_dta = 0;
-int index_can_frame_read = 0;
+unsigned char canFrames[MAX_RECV_CAN_LEN][16]; // Buffer allows for 16 received can messages 
+int canFramesAvailableCount = 0;
+int canFramesWriteIndex = 0;
+int canFramesReadIndex = 0;
 
 const int SPI_CS_PIN = 9;            // CAN Bus Shield
-
-MCP_CAN CAN(SPI_CS_PIN);                                    // Set CS pin
+MCP_CAN CAN(SPI_CS_PIN);             // Set CS pin
 
 #define LEDON()     digitalWrite(3, HIGH)
 #define LEDOFF()    digitalWrite(3, LOW)
@@ -106,19 +105,18 @@ void setup()
     WD_SET(WD_RST, WDTO_1S);
 }
 
-unsigned char stmp[8] = { 0, 0, 0, 0, 0, 0, 0, 0 };
-
-int cntBlink = 0;
+int blinkCount = 0;
 void blink()
 {
-    static unsigned long timer_s = millis();
-    if (millis() - timer_s < 100)return;
-    timer_s = millis();
+    static unsigned long lastBlinkTime = millis();
 
-    if (cntBlink > 0)
+    if (millis() - lastBlinkTime < 100) return;
+
+    lastBlinkTime = millis();
+    if (blinkCount > 0)
     {
-        digitalWrite(3, cntBlink % 2);
-        cntBlink--;
+        digitalWrite(3, blinkCount % 2);
+        blinkCount--;
     }
 }
 
@@ -132,7 +130,7 @@ void loop()
 
     if (i2cWritePending)
     {
-        if (cntBlink == 0)cntBlink = 2;
+        if (blinkCount == 0) blinkCount = 2;
 
         i2cWritePending = 0;
         if (i2cWriteDataLength > 0)
@@ -460,22 +458,22 @@ void handleI2CRead() {
 
     case REG_DNUM:
 
-        Wire.write(cnt_can_frame_dta);
+        Wire.write(canFramesAvailableCount);
         break;
 
     case REG_RECV:
 
-        if (cnt_can_frame_dta > 0)
+        if (canFramesAvailableCount > 0)
         {
             for (int i = 0; i < 16; i++)
             {
-                Wire.write(can_frame_dta[index_can_frame_read][i]);
+                Wire.write(canFrames[canFramesReadIndex][i]);
             }
 
-            index_can_frame_read++;
-            if (index_can_frame_read >= MAX_RECV_CAN_LEN)index_can_frame_read = 0;
+            canFramesReadIndex++;
+            if (canFramesReadIndex >= MAX_RECV_CAN_LEN)canFramesReadIndex = 0;
 
-            cnt_can_frame_dta--;
+            canFramesAvailableCount--;
 
         }
 
@@ -549,56 +547,46 @@ void handleI2CRead() {
     }
 }
 
-/*
-
-unsigned char can_frame_dta[MAX_RECV_CAN_LEN][16];
-int cnt_can_frame_dta   = 0;
-int index_can_frame_dta = 0;
-
-*/
 void taskCANRecv()
 {
-    unsigned char len = 0;
+    unsigned char frameLength = 0;
     unsigned char buf[8];
 
-    if (CAN_MSGAVAIL == CAN.checkReceive())            // check if data coming
+    if (CAN_MSGAVAIL == CAN.checkReceive())
     {
-        CAN.readMsgBuf(&len, buf);    // read data,  len: data length, buf: data buf
+        CAN.readMsgBuf(&frameLength, buf);
 
         unsigned long canId = CAN.getCanId();
 
-
-        if (cnt_can_frame_dta < MAX_RECV_CAN_LEN)
+        if (canFramesAvailableCount < MAX_RECV_CAN_LEN)
         {
-            cnt_can_frame_dta++;
+            canFramesAvailableCount++;
         }
         else
         {
-            index_can_frame_read++;
-            if (index_can_frame_read >= MAX_RECV_CAN_LEN)index_can_frame_read = 0;
+            canFramesReadIndex++;
+            if (canFramesReadIndex >= MAX_RECV_CAN_LEN) canFramesReadIndex = 0;
         }
 
-        can_frame_dta[index_can_frame_dta][0] = (canId >> 24) & 0xff;
-        can_frame_dta[index_can_frame_dta][1] = (canId >> 16) & 0xff;
-        can_frame_dta[index_can_frame_dta][2] = (canId >> 8) & 0xff;
-        can_frame_dta[index_can_frame_dta][3] = (canId >> 0) & 0xff;
+        canFrames[canFramesWriteIndex][0] = (canId >> 24) & 0xff;
+        canFrames[canFramesWriteIndex][1] = (canId >> 16) & 0xff;
+        canFrames[canFramesWriteIndex][2] = (canId >> 8) & 0xff;
+        canFrames[canFramesWriteIndex][3] = (canId >> 0) & 0xff;
 
-        can_frame_dta[index_can_frame_dta][4] = CAN.isExtendedFrame();          // extend frame?
-        can_frame_dta[index_can_frame_dta][5] = CAN.isRemoteRequest();          // remote frame?
+        canFrames[canFramesWriteIndex][4] = CAN.isExtendedFrame();
+        canFrames[canFramesWriteIndex][5] = CAN.isRemoteRequest();
 
-        can_frame_dta[index_can_frame_dta][6] = len;
+        canFrames[canFramesWriteIndex][6] = frameLength;
 
-        for (int i = 0; i < len; i++)
+        for (int i = 0; i < frameLength; i++)
         {
-            can_frame_dta[index_can_frame_dta][7 + i] = buf[i];
+            canFrames[canFramesWriteIndex][7 + i] = buf[i];
         }
 
-        can_frame_dta[index_can_frame_dta][15] = makeCheckSum(&can_frame_dta[index_can_frame_dta][0], 15);
+        canFrames[canFramesWriteIndex][15] = makeCheckSum(&canFrames[canFramesWriteIndex][0], 15);
 
-        index_can_frame_dta++;
-        if (index_can_frame_dta >= (MAX_RECV_CAN_LEN)) index_can_frame_dta = 0;
+        canFramesWriteIndex++;
+        if (canFramesWriteIndex >= (MAX_RECV_CAN_LEN)) canFramesWriteIndex = 0;
 
     }
 }
-
-// END FILE
