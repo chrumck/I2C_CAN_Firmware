@@ -31,6 +31,7 @@
             "cStandard": "c11",
             "cppStandard": "c++11",
             "defines": [
+                "__AVR_ATmega168PA__", // Added manually to remove the `WDTCSR not defined` error
                 "F_CPU=8000000L",
                 "ARDUINO=10607",
                 "ARDUINO_AVR_ATMEGA168BB",
