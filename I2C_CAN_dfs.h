@@ -3,6 +3,9 @@
 
 #include <avr/io.h>
 
+#define FALSE 0
+#define TRUE 1
+
 // watch dog
 #define WD_SET(val,...)                                 \
     __asm__ __volatile__(                               \
