@@ -30,7 +30,6 @@
 #include "I2C_CAN_dfs.h"
 
 #define  MAX_RECV_CAN_LEN       16          // BUF FOR CAN FRAME RECEIVING
-#define  EEPADDR_TESTMODE       99
 
 unsigned char can_frame_dta[MAX_RECV_CAN_LEN][16]; // Buffer allows for 16 received can messages 
 int cnt_can_frame_dta = 0;
@@ -45,9 +44,9 @@ MCP_CAN CAN(SPI_CS_PIN);                                    // Set CS pin
 #define LEDOFF()    digitalWrite(3, LOW)
 #define LEDTOGGLE() digitalWrite(3, 1 - digitalRead(3))
 
-unsigned char i2c_get_len = 0;
-unsigned char i2c_dta[20];
-unsigned char flg_i2c_get = 0;
+unsigned char i2cWriteDataLength = 0;
+unsigned char i2cWriteData[20];
+unsigned char i2cWritePending = 0;
 
 unsigned char reg_read = 0;
 
@@ -66,108 +65,10 @@ unsigned char makeCheckSum(unsigned char* dta, int len)
     return sum;
 }
 
-void blinkTestMode()
-{
-    static unsigned long timer_s = millis();
-    if (millis() - timer_s < 100)return;
-    timer_s = millis();
-
-
-    LEDTOGGLE();
-}
-
-void testModeCANSend()
-{
-    static unsigned long timer_s = millis();
-    if (millis() - timer_s < 500)return;
-    timer_s = millis();
-
-    unsigned char stmp[8] = { 0x55, 0xff, 0x55, 0xaa, 0x0f, 0x5a, 0xfa, 0xf5 };
-    CAN.sendMsgBuf(0x00, 0, 8, stmp);
-}
-
-void testMode()
-{
-    if (EEPROM.read(EEPADDR_TESTMODE) == 0xAB)return;
-
-    //pinMode(0, OUTPUT);
-    //pinMode(1, INPUT);
-    pinMode(3, OUTPUT);
-    //Serial.begin(9600);
-
-    pinMode(A4, INPUT);
-    pinMode(A5, OUTPUT);
-    int cnt = 0;
-PINTEST:
-    //Serial.print("hello");
-
-    unsigned char flgPinTest = 1;     // 0 fail, 1 ok
-    unsigned long timer_s = millis();
-
-
-
-    unsigned char str[10];
-    unsigned char len = 0;
-
-    digitalWrite(A5, HIGH);
-
-    delay(10);
-
-    if (HIGH != digitalRead(A4))     // test ok
-    {
-        flgPinTest = 0;
-    }
-
-    digitalWrite(A5, LOW);
-    delay(10);
-
-    if (LOW != digitalRead(A4))     // test ok
-    {
-        flgPinTest = 0;
-    }
-
-    if (!flgPinTest)     // pin test fail
-    {
-        EEPROM.write(EEPADDR_TESTMODE, 0);
-        while (1)
-        {
-            digitalWrite(3, HIGH);
-            delay(50);
-            digitalWrite(3, LOW);
-            delay(200);
-            digitalWrite(3, HIGH);
-            delay(50);
-            digitalWrite(3, LOW);
-            delay(700);
-        }
-    }
-
-    while (CAN_OK != CAN.begin(CAN_500KBPS))              // init can bus : baudrate = 500k
-    {
-
-        delay(500);
-        LEDTOGGLE();
-    }
-
-    EEPROM.write(EEPADDR_TESTMODE, 0xAB);
-    while (1)
-    {
-        delay(50);
-        LEDTOGGLE();
-        testModeCANSend();
-    }
-
-    Serial.begin(9600);
-}
-
-
-
 void setup()
 {
     pinMode(3, OUTPUT);
     Serial.begin(115200);
-
-    //testMode();
 
     for (int i = 0; i < 20; i++)
     {
@@ -188,9 +89,10 @@ void setup()
         EEPROM.write(REG_ADDR, DEFAULT_I2C_ADDR);
     }
 
-    Wire.begin(EEPROM.read(REG_ADDR));                // join i2c bus with address #8
-    Wire.onReceive(receiveEvent); // register event
-    Wire.onRequest(requestEvent); // register event
+    // I2C setup
+    Wire.begin(EEPROM.read(REG_ADDR));
+    Wire.onReceive(handleI2CWrite);
+    Wire.onRequest(handleI2CRead);
 
     while (CAN_OK != CAN.begin(__baud))    // init can bus : baudrate = 500k
     {
@@ -198,7 +100,9 @@ void setup()
         digitalWrite(3, 1 - digitalRead(3));
         Serial.println("CAN FAIL");
     }
+
     LEDON();
+
     WD_SET(WD_RST, WDTO_1S);
 }
 
@@ -221,41 +125,45 @@ void blink()
 void loop()
 {
     taskCANRecv();
+
     blink();
+
     WDR();
-    if (flg_i2c_get)
+
+    if (i2cWritePending)
     {
         if (cntBlink == 0)cntBlink = 2;
 
-        flg_i2c_get = 0;
-        if (i2c_get_len > 0)
-            switch (i2c_dta[0])
+        i2cWritePending = 0;
+        if (i2cWriteDataLength > 0)
+
+            switch (i2cWriteData[0])
             {
                 //***********************SEND A FRAME***********************************
             case REG_SEND:              // send
 
-                if (17 == i2c_get_len)
+                if (17 == i2cWriteDataLength)
                 {
                     unsigned long id = 0;
 
-                    id = i2c_dta[1];
+                    id = i2cWriteData[1];
                     id <<= 8;
-                    id += i2c_dta[2];
+                    id += i2cWriteData[2];
                     id <<= 8;
-                    id += i2c_dta[3];
+                    id += i2cWriteData[3];
                     id <<= 8;
-                    id += i2c_dta[4];
+                    id += i2cWriteData[4];
 
-                    int __len = i2c_dta[7];
-                    int __ext = i2c_dta[5];
+                    int __len = i2cWriteData[7];
+                    int __ext = i2cWriteData[5];
 
-                    unsigned char __checksum = makeCheckSum(&i2c_dta[1], 15);
+                    unsigned char __checksum = makeCheckSum(&i2cWriteData[1], 15);
 
-                    if (__checksum == i2c_dta[16])       // check sum ok
+                    if (__checksum == i2cWriteData[16])       // check sum ok
                     {
                         if (__len <= 8)
                         {
-                            CAN.sendMsgBuf(id, __ext, __len, &i2c_dta[8]);
+                            CAN.sendMsgBuf(id, __ext, __len, &i2cWriteData[8]);
                         }
                     }
                 }
@@ -263,16 +171,16 @@ void loop()
                 break;
                 //***********************SET BAUD******************************************
             case REG_BAUD:
-                if (1 == i2c_get_len)                // read
+                if (1 == i2cWriteDataLength)                // read
                 {
                     reg_read = REG_BAUD;
                 }
-                else if (2 == i2c_get_len)           // write
+                else if (2 == i2cWriteDataLength)           // write
                 {
-                    if (i2c_dta[1] >= 1 && i2c_dta[1] <= 18)
+                    if (i2cWriteData[1] >= 1 && i2cWriteData[1] <= 18)
                     {
-                        EEPROM.write(REG_BAUD, i2c_dta[1]);
-                        while (CAN_OK != CAN.begin(i2c_dta[1]))    // init can bus : baudrate = 500k
+                        EEPROM.write(REG_BAUD, i2cWriteData[1]);
+                        while (CAN_OK != CAN.begin(i2cWriteData[1]))    // init can bus : baudrate = 500k
                         {
                             delay(100);
                         }
@@ -283,7 +191,7 @@ void loop()
                 /************************GET CAN FRAME NUMBER******************************/
             case REG_DNUM:
 
-                if (1 == i2c_get_len)
+                if (1 == i2cWriteDataLength)
                 {
                     reg_read = REG_DNUM;
                 }
@@ -293,9 +201,9 @@ void loop()
                 //***********************SET ADDR*******************************************
             case REG_ADDR:
 
-                if (2 == i2c_get_len)
+                if (2 == i2cWriteDataLength)
                 {
-                    EEPROM.write(REG_ADDR, i2c_dta[1]);
+                    EEPROM.write(REG_ADDR, i2cWriteData[1]);
                     while (1);
                 }
 
@@ -303,7 +211,7 @@ void loop()
                 //***********************GET CAN FRAME**************************************
             case REG_RECV:
 
-                if (1 == i2c_get_len)
+                if (1 == i2cWriteDataLength)
                 {
                     reg_read = REG_RECV;
                 }
@@ -313,78 +221,78 @@ void loop()
                 //***********************MASK0*********************************************
             case REG_MASK0:
 
-                if (1 == i2c_get_len)            // read mask0
+                if (1 == i2cWriteDataLength)            // read mask0
                 {
                     reg_read = REG_MASK0;
                 }
-                else if (6 == i2c_get_len)       // set mask0
+                else if (6 == i2cWriteDataLength)       // set mask0
                 {
                     for (int i = 0; i < 5; i++)
                     {
-                        EEPROM.write(REG_MASK0 + i, i2c_dta[1 + i]);
+                        EEPROM.write(REG_MASK0 + i, i2cWriteData[1 + i]);
                     }
 
-                    unsigned long mask = i2c_dta[2];
+                    unsigned long mask = i2cWriteData[2];
                     mask <<= 8;
-                    mask += i2c_dta[3];
+                    mask += i2cWriteData[3];
                     mask <<= 8;
-                    mask += i2c_dta[4];
+                    mask += i2cWriteData[4];
                     mask <<= 8;
-                    mask += i2c_dta[5];
+                    mask += i2cWriteData[5];
 
-                    CAN.init_Mask(0, i2c_dta[1], mask);
+                    CAN.init_Mask(0, i2cWriteData[1], mask);
                 }
 
                 break;
                 //***********************MASK1*********************************************
             case REG_MASK1:
 
-                if (1 == i2c_get_len)            // read mask0
+                if (1 == i2cWriteDataLength)            // read mask0
                 {
                     reg_read = REG_MASK1;
                 }
-                else if (6 == i2c_get_len)       // set mask0
+                else if (6 == i2cWriteDataLength)       // set mask0
                 {
                     for (int i = 0; i < 5; i++)
                     {
-                        EEPROM.write(REG_MASK1 + i, i2c_dta[1 + i]);
+                        EEPROM.write(REG_MASK1 + i, i2cWriteData[1 + i]);
                     }
 
-                    unsigned long mask = i2c_dta[2];
+                    unsigned long mask = i2cWriteData[2];
                     mask <<= 8;
-                    mask += i2c_dta[3];
+                    mask += i2cWriteData[3];
                     mask <<= 8;
-                    mask += i2c_dta[4];
+                    mask += i2cWriteData[4];
                     mask <<= 8;
-                    mask += i2c_dta[5];
+                    mask += i2cWriteData[5];
 
-                    CAN.init_Mask(1, i2c_dta[1], mask);
+                    CAN.init_Mask(1, i2cWriteData[1], mask);
                 }
 
                 break;
                 //***********************FILTER 0*********************************************
             case REG_FILT0:
 
-                if (1 == i2c_get_len)            // read mask0
+                if (1 == i2cWriteDataLength)            // read mask0
                 {
                     reg_read = REG_FILT0;
                 }
-                else if (6 == i2c_get_len)       // set mask0
+                else if (6 == i2cWriteDataLength)       // set mask0
                 {
                     for (int i = 0; i < 5; i++)
                     {
-                        EEPROM.write(REG_FILT0 + i, i2c_dta[1 + i]);
+                        EEPROM.write(REG_FILT0 + i, i2cWriteData[1 + i]);
                     }
 
-                    unsigned long filt = i2c_dta[2];
+                    unsigned long filt = i2cWriteData[2];
                     filt <<= 8;
-                    filt += i2c_dta[3];
+                    filt += i2cWriteData[3];
                     filt <<= 8;
-                    filt += i2c_dta[4];
+                    filt += i2cWriteData[4];
                     filt <<= 8;
-                    filt += i2c_dta[5];
+                    filt += i2cWriteData[5];
 
-                    CAN.init_Filt(0, i2c_dta[1], filt);
+                    CAN.init_Filt(0, i2cWriteData[1], filt);
                 }
 
                 break;
@@ -392,130 +300,130 @@ void loop()
                 //***********************FILTER 1*********************************************
             case REG_FILT1:
 
-                if (1 == i2c_get_len)            // read mask0
+                if (1 == i2cWriteDataLength)            // read mask0
                 {
                     reg_read = REG_FILT1;
                 }
-                else if (6 == i2c_get_len)       // set mask0
+                else if (6 == i2cWriteDataLength)       // set mask0
                 {
                     for (int i = 0; i < 5; i++)
                     {
-                        EEPROM.write(REG_FILT1 + i, i2c_dta[1 + i]);
+                        EEPROM.write(REG_FILT1 + i, i2cWriteData[1 + i]);
                     }
 
-                    unsigned long filt = i2c_dta[2];
+                    unsigned long filt = i2cWriteData[2];
                     filt <<= 8;
-                    filt += i2c_dta[3];
+                    filt += i2cWriteData[3];
                     filt <<= 8;
-                    filt += i2c_dta[4];
+                    filt += i2cWriteData[4];
                     filt <<= 8;
-                    filt += i2c_dta[5];
+                    filt += i2cWriteData[5];
 
-                    CAN.init_Filt(1, i2c_dta[1], filt);
+                    CAN.init_Filt(1, i2cWriteData[1], filt);
                 }
 
                 break;
                 //***********************FILTER 2*********************************************
             case REG_FILT2:
 
-                if (1 == i2c_get_len)            // read mask0
+                if (1 == i2cWriteDataLength)            // read mask0
                 {
                     reg_read = REG_FILT2;
                 }
-                else if (6 == i2c_get_len)       // set mask0
+                else if (6 == i2cWriteDataLength)       // set mask0
                 {
                     for (int i = 0; i < 5; i++)
                     {
-                        EEPROM.write(REG_FILT2 + i, i2c_dta[1 + i]);
+                        EEPROM.write(REG_FILT2 + i, i2cWriteData[1 + i]);
                     }
 
-                    unsigned long filt = i2c_dta[2];
+                    unsigned long filt = i2cWriteData[2];
                     filt <<= 8;
-                    filt += i2c_dta[3];
+                    filt += i2cWriteData[3];
                     filt <<= 8;
-                    filt += i2c_dta[4];
+                    filt += i2cWriteData[4];
                     filt <<= 8;
-                    filt += i2c_dta[5];
+                    filt += i2cWriteData[5];
 
-                    CAN.init_Filt(2, i2c_dta[1], filt);
+                    CAN.init_Filt(2, i2cWriteData[1], filt);
                 }
 
                 break;
                 //***********************FILTER 3*********************************************
             case REG_FILT3:
 
-                if (1 == i2c_get_len)            // read mask0
+                if (1 == i2cWriteDataLength)            // read mask0
                 {
                     reg_read = REG_FILT3;
                 }
-                else if (6 == i2c_get_len)       // set mask0
+                else if (6 == i2cWriteDataLength)       // set mask0
                 {
                     for (int i = 0; i < 5; i++)
                     {
-                        EEPROM.write(REG_FILT3 + i, i2c_dta[1 + i]);
+                        EEPROM.write(REG_FILT3 + i, i2cWriteData[1 + i]);
                     }
 
-                    unsigned long filt = i2c_dta[2];
+                    unsigned long filt = i2cWriteData[2];
                     filt <<= 8;
-                    filt += i2c_dta[3];
+                    filt += i2cWriteData[3];
                     filt <<= 8;
-                    filt += i2c_dta[4];
+                    filt += i2cWriteData[4];
                     filt <<= 8;
-                    filt += i2c_dta[5];
+                    filt += i2cWriteData[5];
 
-                    CAN.init_Filt(3, i2c_dta[1], filt);
+                    CAN.init_Filt(3, i2cWriteData[1], filt);
                 }
 
                 break;
                 //***********************FILTER 4*********************************************
             case REG_FILT4:
 
-                if (1 == i2c_get_len)            // read mask0
+                if (1 == i2cWriteDataLength)            // read mask0
                 {
                     reg_read = REG_FILT4;
                 }
-                else if (6 == i2c_get_len)       // set mask0
+                else if (6 == i2cWriteDataLength)       // set mask0
                 {
                     for (int i = 0; i < 5; i++)
                     {
-                        EEPROM.write(REG_FILT4 + i, i2c_dta[1 + i]);
+                        EEPROM.write(REG_FILT4 + i, i2cWriteData[1 + i]);
                     }
 
-                    unsigned long filt = i2c_dta[2];
+                    unsigned long filt = i2cWriteData[2];
                     filt <<= 8;
-                    filt += i2c_dta[3];
+                    filt += i2cWriteData[3];
                     filt <<= 8;
-                    filt += i2c_dta[4];
+                    filt += i2cWriteData[4];
                     filt <<= 8;
-                    filt += i2c_dta[5];
+                    filt += i2cWriteData[5];
 
-                    CAN.init_Filt(4, i2c_dta[1], filt);
+                    CAN.init_Filt(4, i2cWriteData[1], filt);
                 }
 
                 break;
                 //***********************FILTER 5*********************************************
             case REG_FILT5:
 
-                if (1 == i2c_get_len)            // read mask0
+                if (1 == i2cWriteDataLength)            // read mask0
                 {
                     reg_read = REG_FILT5;
                 }
-                else if (6 == i2c_get_len)       // set mask0
+                else if (6 == i2cWriteDataLength)       // set mask0
                 {
                     for (int i = 0; i < 5; i++)
                     {
-                        EEPROM.write(REG_FILT5 + i, i2c_dta[1 + i]);
+                        EEPROM.write(REG_FILT5 + i, i2cWriteData[1 + i]);
                     }
 
-                    unsigned long filt = i2c_dta[2];
+                    unsigned long filt = i2cWriteData[2];
                     filt <<= 8;
-                    filt += i2c_dta[3];
+                    filt += i2cWriteData[3];
                     filt <<= 8;
-                    filt += i2c_dta[4];
+                    filt += i2cWriteData[4];
                     filt <<= 8;
-                    filt += i2c_dta[5];
+                    filt += i2cWriteData[5];
 
-                    CAN.init_Filt(5, i2c_dta[1], filt);
+                    CAN.init_Filt(5, i2cWriteData[1], filt);
                 }
 
                 break;
@@ -524,25 +432,25 @@ void loop()
             default:;
             }
 
-        i2c_get_len = 0;
+        i2cWriteDataLength = 0;
     }
 }
 
 // function that executes whenever data is received from master
 // this function is registered as an event, see setup()
-void receiveEvent(int howMany)
+void handleI2CWrite(int howMany)
 {
     while (0 < Wire.available()) { // loop through all but the last
-        i2c_dta[i2c_get_len++] = Wire.read();
+        i2cWriteData[i2cWriteDataLength++] = Wire.read();
     }
 
-    if (i2c_get_len > 0) flg_i2c_get = 1;
+    if (i2cWriteDataLength > 0) i2cWritePending = 1;
 
 }
 
 // function that executes whenever data is requested by master
 // this function is registered as an event, see setup()
-void requestEvent() {
+void handleI2CRead() {
 
     switch (reg_read)
     {
