@@ -41,6 +41,8 @@
 #define REG_ADDR        0X01
 #define REG_DNUM        0x02
 #define REG_BAUD        0X03
+#define REG_SEND        0X30
+#define REG_RECV        0X40
 #define REG_MASK0       0X60
 #define REG_MASK1       0X65
 #define REG_FILT0       0X70
@@ -49,9 +51,6 @@
 #define REG_FILT3       0XA0
 #define REG_FILT4       0XB0
 #define REG_FILT5       0XC0
-
-#define REG_SEND        0X30
-#define REG_RECV        0X40
 
 #define REG_ADDR_SET    0X51
 
