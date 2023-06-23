@@ -29,19 +29,22 @@
 #include <EEPROM.h>
 #include "I2C_CAN_dfs.h"
 
-#define  MAX_RECV_CAN_LEN       16          // BUF FOR CAN FRAME RECEIVING
+#define  MAX_RECV_CAN_LEN 16          // BUF FOR CAN FRAME RECEIVING
+
+#define SPI_CS_PIN 9            // CAN Bus Shield
+#define LED_PIN 3
+#define SERIAL_BAUD_RATE 11520
+
+#define LEDON()     digitalWrite(LED_PIN, HIGH)
+#define LEDOFF()    digitalWrite(LED_PIN, LOW)
+#define LEDTOGGLE() digitalWrite(LED_PIN, 1 - digitalRead(LED_PIN))
+
+MCP_CAN CAN(SPI_CS_PIN);
 
 unsigned char canFrames[MAX_RECV_CAN_LEN][16]; // Buffer allows for 16 received can messages 
 int canFramesCount = 0;
 int canFramesWriteIndex = 0;
 int canFramesReadIndex = 0;
-
-const int SPI_CS_PIN = 9;            // CAN Bus Shield
-MCP_CAN CAN(SPI_CS_PIN);             // Set CS pin
-
-#define LEDON()     digitalWrite(3, HIGH)
-#define LEDOFF()    digitalWrite(3, LOW)
-#define LEDTOGGLE() digitalWrite(3, 1 - digitalRead(3))
 
 unsigned char i2cDataLength = 0;
 unsigned char i2cData[20];
@@ -49,10 +52,13 @@ unsigned char i2cDataReceived = FALSE;
 
 unsigned char i2cReadRequest = 0;
 
+int blinkCount = 0;
+unsigned long lastBlinkTime = millis();
+
 unsigned char getCheckSum(unsigned char* dta, int len)
 {
     unsigned long sum = 0;
-    for (int i = 0; i < len; i++)sum += dta[i];
+    for (int i = 0; i < len; i++) sum += dta[i];
 
     if (sum > 0xff)
     {
@@ -66,8 +72,9 @@ unsigned char getCheckSum(unsigned char* dta, int len)
 
 void setup()
 {
-    pinMode(3, OUTPUT);
-    Serial.begin(115200);
+    pinMode(LED_PIN, OUTPUT);
+
+    Serial.begin(SERIAL_BAUD_RATE);
 
     for (int i = 0; i < 20; i++)
     {
@@ -75,14 +82,11 @@ void setup()
         delay(20);
     }
 
-    int __baud = EEPROM.read(REG_BAUD);
+    int canBaud = EEPROM.read(REG_BAUD);
+    if (canBaud < CAN_5KBPS || canBaud > CAN_1000KBPS) canBaud = CAN_500KBPS;
 
-    if (__baud == 0 || __baud > 18)          // not setting baud rate
-    {
-        __baud = 16;
-    }
 
-    if (0x5a != EEPROM.read(REG_ADDR_SET))       // if not 0x5a, no set yet, set to default
+    if (0x5a != EEPROM.read(REG_ADDR_SET))
     {
         EEPROM.write(REG_ADDR_SET, 0x5a);
         EEPROM.write(REG_ADDR, DEFAULT_I2C_ADDR);
@@ -93,10 +97,10 @@ void setup()
     Wire.onReceive(handleI2CWrite);
     Wire.onRequest(handleI2CRead);
 
-    while (CAN_OK != CAN.begin(__baud))    // init can bus : baudrate = 500k
+    while (CAN_OK != CAN.begin(canBaud))
     {
         delay(100);
-        digitalWrite(3, 1 - digitalRead(3));
+        LEDTOGGLE();
         Serial.println("CAN FAIL");
     }
 
@@ -105,35 +109,26 @@ void setup()
     WD_SET(WD_RST, WDTO_1S);
 }
 
-int blinkCount = 0;
-void blink()
-{
-    static unsigned long lastBlinkTime = millis();
+#define blinkLed()\
+    if (millis() - lastBlinkTime >= 100) {\
+        lastBlinkTime = millis();\
+        if (blinkCount > 0) {\
+            digitalWrite(LED_PIN, blinkCount % 2);\
+            blinkCount--;\
+        }\
+    }\
 
-    if (millis() - lastBlinkTime < 100) return;
-
-    lastBlinkTime = millis();
-    if (blinkCount > 0)
-    {
-        digitalWrite(3, blinkCount % 2);
-        blinkCount--;
-    }
-}
-
-#define readWriteMaskOrFilter(regIndex) {\
+#define processMaskOrFilterRequest(regIndex)\
     if (1 == i2cDataLength) i2cReadRequest = regIndex;\
     if (6 != i2cDataLength) break;\
     for (int i = 0; i < 5; i++) EEPROM.write(regIndex + i, i2cData[1 + i]);\
-    unsigned long newMask = i2cData[5] << 24 | i2cData[4] << 16 | i2cData[3] << 8 | i2cData[2];\
-    CAN.init_Mask(0, i2cData[1], newMask);\
-    break;\
-}\
+    unsigned long newMaskOrFilter = i2cData[5] << 24 | i2cData[4] << 16 | i2cData[3] << 8 | i2cData[2];\
 
 void loop()
 {
     receiveCanFrame();
 
-    blink();
+    blinkLed();
 
     WDR();
 
@@ -147,57 +142,89 @@ void loop()
 
     switch (i2cData[0]) {
 
-    case REG_ADDR: { // set i2c address
+    case REG_ADDR: {
         if (i2cDataLength != 2) break;
-
         EEPROM.write(REG_ADDR, i2cData[1]);
         while (TRUE);
         break;
     }
 
-    case REG_DNUM: { // get number of CAN frames available
+    case REG_DNUM: {
         if (i2cDataLength == 1) i2cReadRequest = REG_DNUM;
         break;
     }
 
-    case REG_BAUD: { // get/set CAN baud rate
+    case REG_BAUD: {
         if (i2cDataLength == 1) i2cReadRequest = REG_BAUD;
         if (i2cDataLength != 2) break;
-        if (i2cData[1] < 1 || i2cData[1] > 18) break;
+        if (i2cData[1] < CAN_5KBPS || i2cData[1] > CAN_1000KBPS) break;
 
-        EEPROM.write(REG_BAUD, i2cData[1]);
         while (CAN_OK != CAN.begin(i2cData[1])) delay(100);
+        EEPROM.write(REG_BAUD, i2cData[1]);
         break;
     }
 
-    case REG_SEND: { // send CAN frame
+    case REG_SEND: {
         if (i2cDataLength != 17) break;
 
-        int frameLength = i2cData[7];
         unsigned char checksum = getCheckSum(&i2cData[1], 15);
-        if (checksum != i2cData[16] || frameLength > 8) break;
+        if (checksum != i2cData[16] || i2cData[7] > 8) break;
 
         unsigned long frameId = i2cData[4] << 24 | i2cData[3] << 16 | i2cData[2] << 8 | i2cData[1];
-        CAN.sendMsgBuf(frameId, i2cData[5], frameLength, &i2cData[8]);
+        CAN.sendMsgBuf(frameId, i2cData[5], i2cData[7], &i2cData[8]);
         break;
     }
 
-    case REG_RECV: { // get CAN frame
+    case REG_RECV: {
         if (1 == i2cDataLength) i2cReadRequest = REG_RECV;
         break;
     }
 
-    case REG_MASK0: readWriteMaskOrFilter(REG_MASK0);
-    case REG_MASK1: readWriteMaskOrFilter(REG_MASK1);
+    case REG_MASK0: {
+        processMaskOrFilterRequest(REG_MASK0);
+        CAN.init_Mask(0, i2cData[1], newMaskOrFilter);
+        break;
+    }
 
-    case REG_FILT0: readWriteMaskOrFilter(REG_FILT0);
-    case REG_FILT1: readWriteMaskOrFilter(REG_FILT1);
-    case REG_FILT2: readWriteMaskOrFilter(REG_FILT2);
-    case REG_FILT3: readWriteMaskOrFilter(REG_FILT3);
-    case REG_FILT4: readWriteMaskOrFilter(REG_FILT4);
-    case REG_FILT5: readWriteMaskOrFilter(REG_FILT5);
+    case REG_MASK1: {
+        processMaskOrFilterRequest(REG_MASK1);
+        CAN.init_Mask(1, i2cData[1], newMaskOrFilter);
+        break;
+    }
 
-    default: break;
+    case REG_FILT0: {
+        processMaskOrFilterRequest(REG_FILT0);
+        CAN.init_Filt(0, i2cData[1], newMaskOrFilter);
+        break;
+    }
+    case REG_FILT1: {
+        processMaskOrFilterRequest(REG_FILT1);
+        CAN.init_Filt(1, i2cData[1], newMaskOrFilter);
+        break;
+    }
+    case REG_FILT2: {
+        processMaskOrFilterRequest(REG_FILT2);
+        CAN.init_Filt(2, i2cData[1], newMaskOrFilter);
+        break;
+    }
+    case REG_FILT3: {
+        processMaskOrFilterRequest(REG_FILT3);
+        CAN.init_Filt(3, i2cData[1], newMaskOrFilter);
+        break;
+    }
+    case REG_FILT4: {
+        processMaskOrFilterRequest(REG_FILT4);
+        CAN.init_Filt(4, i2cData[1], newMaskOrFilter);
+        break;
+    }
+    case REG_FILT5: {
+        processMaskOrFilterRequest(REG_FILT5);
+        CAN.init_Filt(5, i2cData[1], newMaskOrFilter);
+        break;
+    }
+
+    default:
+        break;
     }
 
     i2cDataLength = 0;
@@ -209,7 +236,7 @@ void handleI2CWrite(int howMany)
     if (i2cDataLength > 0) i2cDataReceived = TRUE;
 }
 
-#define writeFilterOrMask(regIndex) {\
+#define sendMaskOrFilter(regIndex) {\
      for (int i = 0; i < 5; i++) Wire.write(EEPROM.read(regIndex + i));\
      break;\
 }\
@@ -240,14 +267,14 @@ void handleI2CRead() {
         break;
     }
 
-    case REG_MASK0: writeFilterOrMask(EEPROM.read(REG_MASK0 + i));
-    case REG_MASK1: writeFilterOrMask(EEPROM.read(REG_MASK1 + i));
-    case REG_FILT0: writeFilterOrMask(EEPROM.read(REG_FILT0 + i));
-    case REG_FILT1: writeFilterOrMask(EEPROM.read(REG_FILT1 + i));
-    case REG_FILT2: writeFilterOrMask(EEPROM.read(REG_FILT2 + i));
-    case REG_FILT3: writeFilterOrMask(EEPROM.read(REG_FILT3 + i));
-    case REG_FILT4: writeFilterOrMask(EEPROM.read(REG_FILT4 + i));
-    case REG_FILT5: writeFilterOrMask(EEPROM.read(REG_FILT5 + i));
+    case REG_MASK0: sendMaskOrFilter(REG_MASK0);
+    case REG_MASK1: sendMaskOrFilter(REG_MASK1);
+    case REG_FILT0: sendMaskOrFilter(REG_FILT0);
+    case REG_FILT1: sendMaskOrFilter(REG_FILT1);
+    case REG_FILT2: sendMaskOrFilter(REG_FILT2);
+    case REG_FILT3: sendMaskOrFilter(REG_FILT3);
+    case REG_FILT4: sendMaskOrFilter(REG_FILT4);
+    case REG_FILT5: sendMaskOrFilter(REG_FILT5);
 
     default:
         break;

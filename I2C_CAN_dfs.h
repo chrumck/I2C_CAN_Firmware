@@ -6,7 +6,7 @@
 #define FALSE 0
 #define TRUE 1
 
-// watch dog
+// watchdog
 #define WD_SET(val,...)                                 \
     __asm__ __volatile__(                               \
         "in __tmp_reg__,__SREG__"           "\n\t"      \
@@ -55,5 +55,3 @@
 #define REG_ADDR_SET    0X51
 
 #endif
-
-// END FILE
