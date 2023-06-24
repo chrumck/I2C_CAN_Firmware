@@ -1,5 +1,6 @@
 {
     "sketch": "I2C_CAN_Firmware.ino",
     "board": "Longan Card:avr:atmega168bc",
-    "port": "COM3"
+    "port": "COM3",
+    "output": "./build"
 }
