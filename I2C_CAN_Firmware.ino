@@ -29,7 +29,8 @@
 #include <EEPROM.h>
 #include "I2C_CAN_dfs.h"
 
-#define  CAN_FRAMES_BUFFER_SIZE 16          // BUF FOR CAN FRAME RECEIVING, Buffer allows for 16 received can messages
+#define  CAN_FRAME_SIZE 16
+#define  CAN_FRAMES_BUFFER_SIZE 16
 
 #define SPI_CS_PIN 9            // CAN Bus Shield
 #define LED_PIN 3
@@ -41,24 +42,25 @@
 
 MCP_CAN CAN(SPI_CS_PIN);
 
-unsigned char canFramesBuffer[CAN_FRAMES_BUFFER_SIZE][16];
+CanFrame canFramesBuffer[CAN_FRAMES_BUFFER_SIZE];
+
 int canFramesCount = 0;
 int canFramesWriteIndex = 0;
 int canFramesReadIndex = 0;
 
-unsigned char i2cDataLength = 0;
-unsigned char i2cData[20];
-unsigned char i2cDataReceived = FALSE;
+byte i2cDataLength = 0;
+byte i2cData[20];
+byte i2cDataReceived = FALSE;
 
-unsigned char i2cReadRequest = 0;
+byte i2cReadRequest = 0;
 
 int blinkCount = 0;
 unsigned long lastBlinkTime = millis();
 
-unsigned char getCheckSum(unsigned char* dta, int len)
+byte getCheckSum(byte* data, int length)
 {
     unsigned long sum = 0;
-    for (int i = 0; i < len; i++) sum += dta[i];
+    for (int i = 0; i < length; i++) sum += data[i];
 
     if (sum > 0xff)
     {
@@ -167,7 +169,7 @@ void loop()
     case REG_SEND: {
         if (i2cDataLength != 17) break;
 
-        unsigned char checksum = getCheckSum(&i2cData[1], 15);
+        byte checksum = getCheckSum(&i2cData[1], 15);
         if (checksum != i2cData[16] || i2cData[7] > 8) break;
 
         unsigned long frameId = i2cData[4] << 24 | i2cData[3] << 16 | i2cData[2] << 8 | i2cData[1];
@@ -258,7 +260,20 @@ void handleI2CRead() {
     case REG_RECV: {
         if (canFramesCount <= 0) break;
 
-        for (int i = 0; i < 16; i++) Wire.write(canFramesBuffer[canFramesReadIndex][i]);
+        CanFrame frameFromBuffer = canFramesBuffer[canFramesReadIndex];
+
+        byte frameToSend[CAN_FRAME_SIZE];
+        frameToSend[0] = (frameFromBuffer.canId >> 24) & 0xff;
+        frameToSend[1] = (frameFromBuffer.canId >> 16) & 0xff;
+        frameToSend[2] = (frameFromBuffer.canId >> 8) & 0xff;
+        frameToSend[3] = (frameFromBuffer.canId >> 0) & 0xff;
+        frameToSend[4] = frameFromBuffer.isExtended;
+        frameToSend[5] = frameFromBuffer.isRemoteRequest;
+        frameToSend[6] = frameFromBuffer.length;
+        for (int i = 0; i < frameFromBuffer.length; i++) frameToSend[7 + i] = frameFromBuffer.data[i];
+        frameToSend[15] = getCheckSum(frameToSend, 15);
+
+        for (int i = 0; i < CAN_FRAME_SIZE; i++) Wire.write(frameToSend[i]);
 
         canFramesReadIndex++;
         if (canFramesReadIndex >= CAN_FRAMES_BUFFER_SIZE) canFramesReadIndex = 0;
@@ -285,12 +300,6 @@ void receiveCanFrame()
 {
     if (CAN.checkReceive() != CAN_MSGAVAIL) return;
 
-    unsigned char frameLength = 0;
-    unsigned char buf[8];
-    CAN.readMsgBuf(&frameLength, buf);
-
-    unsigned long canId = CAN.getCanId();
-
     if (canFramesCount < CAN_FRAMES_BUFFER_SIZE)
     {
         canFramesCount++;
@@ -301,19 +310,12 @@ void receiveCanFrame()
         if (canFramesReadIndex >= CAN_FRAMES_BUFFER_SIZE) canFramesReadIndex = 0;
     }
 
-    canFramesBuffer[canFramesWriteIndex][0] = (canId >> 24) & 0xff;
-    canFramesBuffer[canFramesWriteIndex][1] = (canId >> 16) & 0xff;
-    canFramesBuffer[canFramesWriteIndex][2] = (canId >> 8) & 0xff;
-    canFramesBuffer[canFramesWriteIndex][3] = (canId >> 0) & 0xff;
+    CanFrame frame = canFramesBuffer[canFramesWriteIndex];
 
-    canFramesBuffer[canFramesWriteIndex][4] = CAN.isExtendedFrame();
-    canFramesBuffer[canFramesWriteIndex][5] = CAN.isRemoteRequest();
-
-    canFramesBuffer[canFramesWriteIndex][6] = frameLength;
-
-    for (int i = 0; i < frameLength; i++) canFramesBuffer[canFramesWriteIndex][7 + i] = buf[i];
-
-    canFramesBuffer[canFramesWriteIndex][15] = getCheckSum(&canFramesBuffer[canFramesWriteIndex][0], 15);
+    CAN.readMsgBuf(&frame.length, frame.data);
+    frame.canId = CAN.getCanId();
+    frame.isExtended = CAN.isExtendedFrame();
+    frame.isRemoteRequest = CAN.isRemoteRequest();
 
     canFramesWriteIndex++;
     if (canFramesWriteIndex >= (CAN_FRAMES_BUFFER_SIZE)) canFramesWriteIndex = 0;

@@ -6,6 +6,15 @@
 #define FALSE 0
 #define TRUE 1
 
+typedef struct {
+  unsigned long canId;
+  byte isExtended;
+  byte isRemoteRequest;
+  byte length;
+  byte data[8];
+  byte checksum;
+} CanFrame;
+
 // watchdog
 #define WD_SET(val,...)                                 \
     __asm__ __volatile__(                               \
