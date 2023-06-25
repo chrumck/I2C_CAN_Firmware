@@ -29,7 +29,7 @@
 #include <EEPROM.h>
 #include "I2C_CAN_dfs.h"
 
-#define  MAX_RECV_CAN_LEN 16          // BUF FOR CAN FRAME RECEIVING
+#define  CAN_FRAMES_BUFFER_SIZE 16          // BUF FOR CAN FRAME RECEIVING, Buffer allows for 16 received can messages
 
 #define SPI_CS_PIN 9            // CAN Bus Shield
 #define LED_PIN 3
@@ -41,7 +41,7 @@
 
 MCP_CAN CAN(SPI_CS_PIN);
 
-unsigned char canFrames[MAX_RECV_CAN_LEN][16]; // Buffer allows for 16 received can messages 
+unsigned char canFramesBuffer[CAN_FRAMES_BUFFER_SIZE][16];
 int canFramesCount = 0;
 int canFramesWriteIndex = 0;
 int canFramesReadIndex = 0;
@@ -118,10 +118,10 @@ void setup()
         }\
     }\
 
-#define processMaskOrFilterRequest(regIndex)\
-    if (1 == i2cDataLength) i2cReadRequest = regIndex;\
+#define processMaskOrFilterRequest(request)\
+    if (1 == i2cDataLength) i2cReadRequest = request;\
     if (6 != i2cDataLength) break;\
-    for (int i = 0; i < 5; i++) EEPROM.write(regIndex + i, i2cData[1 + i]);\
+    for (int i = 0; i < 5; i++) EEPROM.write(request + i, i2cData[1 + i]);\
     unsigned long newMaskOrFilter = i2cData[5] << 24 | i2cData[4] << 16 | i2cData[3] << 8 | i2cData[2];\
 
 void loop()
@@ -258,10 +258,10 @@ void handleI2CRead() {
     case REG_RECV: {
         if (canFramesCount <= 0) break;
 
-        for (int i = 0; i < 16; i++) Wire.write(canFrames[canFramesReadIndex][i]);
+        for (int i = 0; i < 16; i++) Wire.write(canFramesBuffer[canFramesReadIndex][i]);
 
         canFramesReadIndex++;
-        if (canFramesReadIndex >= MAX_RECV_CAN_LEN) canFramesReadIndex = 0;
+        if (canFramesReadIndex >= CAN_FRAMES_BUFFER_SIZE) canFramesReadIndex = 0;
 
         canFramesCount--;
         break;
@@ -283,39 +283,38 @@ void handleI2CRead() {
 
 void receiveCanFrame()
 {
-    unsigned char frameLength = 0;
-    unsigned char buf[8];
-
     if (CAN.checkReceive() != CAN_MSGAVAIL) return;
 
+    unsigned char frameLength = 0;
+    unsigned char buf[8];
     CAN.readMsgBuf(&frameLength, buf);
 
     unsigned long canId = CAN.getCanId();
 
-    if (canFramesCount < MAX_RECV_CAN_LEN)
+    if (canFramesCount < CAN_FRAMES_BUFFER_SIZE)
     {
         canFramesCount++;
     }
     else
     {
         canFramesReadIndex++;
-        if (canFramesReadIndex >= MAX_RECV_CAN_LEN) canFramesReadIndex = 0;
+        if (canFramesReadIndex >= CAN_FRAMES_BUFFER_SIZE) canFramesReadIndex = 0;
     }
 
-    canFrames[canFramesWriteIndex][0] = (canId >> 24) & 0xff;
-    canFrames[canFramesWriteIndex][1] = (canId >> 16) & 0xff;
-    canFrames[canFramesWriteIndex][2] = (canId >> 8) & 0xff;
-    canFrames[canFramesWriteIndex][3] = (canId >> 0) & 0xff;
+    canFramesBuffer[canFramesWriteIndex][0] = (canId >> 24) & 0xff;
+    canFramesBuffer[canFramesWriteIndex][1] = (canId >> 16) & 0xff;
+    canFramesBuffer[canFramesWriteIndex][2] = (canId >> 8) & 0xff;
+    canFramesBuffer[canFramesWriteIndex][3] = (canId >> 0) & 0xff;
 
-    canFrames[canFramesWriteIndex][4] = CAN.isExtendedFrame();
-    canFrames[canFramesWriteIndex][5] = CAN.isRemoteRequest();
+    canFramesBuffer[canFramesWriteIndex][4] = CAN.isExtendedFrame();
+    canFramesBuffer[canFramesWriteIndex][5] = CAN.isRemoteRequest();
 
-    canFrames[canFramesWriteIndex][6] = frameLength;
+    canFramesBuffer[canFramesWriteIndex][6] = frameLength;
 
-    for (int i = 0; i < frameLength; i++) canFrames[canFramesWriteIndex][7 + i] = buf[i];
+    for (int i = 0; i < frameLength; i++) canFramesBuffer[canFramesWriteIndex][7 + i] = buf[i];
 
-    canFrames[canFramesWriteIndex][15] = getCheckSum(&canFrames[canFramesWriteIndex][0], 15);
+    canFramesBuffer[canFramesWriteIndex][15] = getCheckSum(&canFramesBuffer[canFramesWriteIndex][0], 15);
 
     canFramesWriteIndex++;
-    if (canFramesWriteIndex >= (MAX_RECV_CAN_LEN)) canFramesWriteIndex = 0;
+    if (canFramesWriteIndex >= (CAN_FRAMES_BUFFER_SIZE)) canFramesWriteIndex = 0;
 }
