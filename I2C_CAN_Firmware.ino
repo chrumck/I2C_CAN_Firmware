@@ -1,29 +1,4 @@
-/*  send a frame from can bus
-    support@longan-labs.cc
-
-    CAN Baudrate,
-
-    #define CAN_5KBPS           1
-    #define CAN_10KBPS          2
-    #define CAN_20KBPS          3
-    #define CAN_25KBPS          4
-    #define CAN_31K25BPS        5
-    #define CAN_33KBPS          6
-    #define CAN_40KBPS          7
-    #define CAN_50KBPS          8
-    #define CAN_80KBPS          9
-    #define CAN_83K3BPS         10
-    #define CAN_95KBPS          11
-    #define CAN_100KBPS         12
-    #define CAN_125KBPS         13
-    #define CAN_200KBPS         14
-    #define CAN_250KBPS         15
-    #define CAN_500KBPS         16
-    #define CAN_666KBPS         17
-    #define CAN_1000KBPS        18
-*/
-
-#include <CAN.h>
+#include <mcp_can.h>
 #include <SPI.h>
 #include <SBWire.h>
 #include <EEPROM.h>
@@ -42,6 +17,8 @@
 #define LEDON()     digitalWrite(LED_PIN, HIGH)
 #define LEDOFF()    digitalWrite(LED_PIN, LOW)
 #define LEDTOGGLE() digitalWrite(LED_PIN, 1 - digitalRead(LED_PIN))
+
+MCP_CAN CAN(SPI_CS_PIN);
 
 CanFrame canFramesBuffer[CAN_FRAMES_BUFFER_SIZE];
 CanFrameIndexEntry canFramesIndex[CAN_FRAMES_INDEX_SIZE];
@@ -80,7 +57,6 @@ byte getCheckSum(byte* data, int length)
 void setup()
 {
     pinMode(LED_PIN, OUTPUT);
-    CAN.setPins(SPI_CS_PIN);
 
     Serial.begin(SERIAL_BAUD_RATE);
 
@@ -105,7 +81,7 @@ void setup()
     Wire.onReceive(handleI2CWrite);
     Wire.onRequest(handleI2CRead);
 
-    while (CAN.begin(canBaud) != TRUE)
+    while (CAN_OK != CAN.begin(canBaud))
     {
         delay(100);
         LEDTOGGLE();
@@ -167,7 +143,7 @@ void loop()
         if (i2cDataLength != 2) break;
         if (i2cData[1] < CAN_5KBPS || i2cData[1] > CAN_1000KBPS) break;
 
-        while (CAN.begin(i2cData[1]) != TRUE) delay(100);
+        while (CAN_OK != CAN.begin(i2cData[1])) delay(100);
         EEPROM.write(REG_BAUD, i2cData[1]);
         break;
     }
@@ -178,22 +154,8 @@ void loop()
         byte checksum = getCheckSum(&i2cData[1], 15);
         if (checksum != i2cData[16] || i2cData[7] > 8) break;
 
-        unsigned long frameId = i2cData[1] << 24 | i2cData[2] << 16 | i2cData[3] << 8 | i2cData[4];
-
-        byte beginResult;
-        if (i2cData[5]) beginResult = CAN.beginExtendedPacket(frameId, i2cData[7], i2cData[6]);
-        else beginResult = CAN.beginPacket(frameId, i2cData[7], i2cData[6]);
-
-        if (beginResult != TRUE) {
-            debugLog("Failed to begin packet");
-            break;
-        }
-
-        CAN.write(&i2cData[8], i2cData[7]);
-        if (CAN.endPacket() != TRUE) {
-            debugLog("Failed to end packet");
-        }
-
+        unsigned long frameId = i2cData[4] << 24 | i2cData[3] << 16 | i2cData[2] << 8 | i2cData[1];
+        CAN.sendMsgBuf(frameId, i2cData[5], i2cData[7], &i2cData[8]);
         break;
     }
 
@@ -204,44 +166,44 @@ void loop()
 
     case REG_MASK0: {
         processMaskOrFilterRequest(REG_MASK0);
-        // CAN.init_Mask(0, i2cData[1], newMaskOrFilter);
+        CAN.init_Mask(0, i2cData[1], newMaskOrFilter);
         break;
     }
 
     case REG_MASK1: {
         processMaskOrFilterRequest(REG_MASK1);
-        // CAN.init_Mask(1, i2cData[1], newMaskOrFilter);
+        CAN.init_Mask(1, i2cData[1], newMaskOrFilter);
         break;
     }
 
     case REG_FILT0: {
         processMaskOrFilterRequest(REG_FILT0);
-        // CAN.init_Filt(0, i2cData[1], newMaskOrFilter);
+        CAN.init_Filt(0, i2cData[1], newMaskOrFilter);
         break;
     }
     case REG_FILT1: {
         processMaskOrFilterRequest(REG_FILT1);
-        // CAN.init_Filt(1, i2cData[1], newMaskOrFilter);
+        CAN.init_Filt(1, i2cData[1], newMaskOrFilter);
         break;
     }
     case REG_FILT2: {
         processMaskOrFilterRequest(REG_FILT2);
-        // CAN.init_Filt(2, i2cData[1], newMaskOrFilter);
+        CAN.init_Filt(2, i2cData[1], newMaskOrFilter);
         break;
     }
     case REG_FILT3: {
         processMaskOrFilterRequest(REG_FILT3);
-        // CAN.init_Filt(3, i2cData[1], newMaskOrFilter);
+        CAN.init_Filt(3, i2cData[1], newMaskOrFilter);
         break;
     }
     case REG_FILT4: {
         processMaskOrFilterRequest(REG_FILT4);
-        // CAN.init_Filt(4, i2cData[1], newMaskOrFilter);
+        CAN.init_Filt(4, i2cData[1], newMaskOrFilter);
         break;
     }
     case REG_FILT5: {
         processMaskOrFilterRequest(REG_FILT5);
-        // CAN.init_Filt(5, i2cData[1], newMaskOrFilter);
+        CAN.init_Filt(5, i2cData[1], newMaskOrFilter);
         break;
     }
 
@@ -345,22 +307,14 @@ void saveFrame(CanFrame* frame) {
 
 void receiveCanFrame()
 {
+    if (CAN.checkReceive() != CAN_MSGAVAIL) return;
+
     CanFrame frame;
-    frame.length = CAN.parsePacket();
-
-    if (frame.length == 0) return;
-
     frame.timestamp = millis();
-    frame.canId = CAN.packetId();
-    frame.isExtended = CAN.packetExtended();
-    frame.isRemoteRequest = CAN.packetRtr();
-
-    for (byte i = 0; i < frame.length; i++)
-    {
-        int dataByte = CAN.read();
-        if (dataByte == -1) break;
-        frame.data[i] = dataByte;
-    }
+    CAN.readMsgBuf(&frame.length, frame.data);
+    frame.canId = CAN.getCanId();
+    frame.isExtended = CAN.isExtendedFrame();
+    frame.isRemoteRequest = CAN.isRemoteRequest();
 
     saveFrame(&frame);
 }
