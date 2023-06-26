@@ -95,7 +95,7 @@ void setup()
     if (canBaud < CAN_5KBPS || canBaud > CAN_1000KBPS) canBaud = CAN_500KBPS;
 
 
-    if (0x5a != EEPROM.read(REG_ADDR_SET))
+    if (EEPROM.read(REG_ADDR_SET) != 0x5a)
     {
         EEPROM.write(REG_ADDR_SET, 0x5a);
         EEPROM.write(REG_ADDR, DEFAULT_I2C_ADDR);
