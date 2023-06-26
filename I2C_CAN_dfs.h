@@ -12,11 +12,11 @@ typedef struct {
   byte isRemoteRequest;
   byte length;
   byte data[8];
-  byte checksum;
+  unsigned long timestamp;
+  byte isSent;
 } CanFrame;
 
 typedef struct {
-  unsigned long timestamp;
   unsigned long canId;
   byte bufferPosition;
 } CanFrameIndexEntry;

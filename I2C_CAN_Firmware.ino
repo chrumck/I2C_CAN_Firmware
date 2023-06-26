@@ -30,7 +30,7 @@
 #include "I2C_CAN_dfs.h"
 
 #define  CAN_FRAME_SIZE 16
-#define  CAN_FRAMES_BUFFER_SIZE 12
+#define  CAN_FRAMES_BUFFER_SIZE 14
 
 #define  CAN_FRAMES_INDEX_LOAD_FACTOR 3
 #define  CAN_FRAMES_INDEX_SIZE (CAN_FRAMES_BUFFER_SIZE * CAN_FRAMES_INDEX_LOAD_FACTOR)
@@ -61,8 +61,8 @@ byte i2cReadRequest = 0;
 int blinkCount = 0;
 unsigned long lastBlinkTime = millis();
 
-byte isDebug = TRUE;
-#define debugLog(message) if (isDebug) Serial.println(message);
+#define IS_DEBUG TRUE
+#define debugLog(message) if (IS_DEBUG) Serial.println(message);
 
 byte getCheckSum(byte* data, int length)
 {
@@ -185,7 +185,7 @@ void loop()
     }
 
     case REG_RECV: {
-        if (1 == i2cDataLength) i2cReadRequest = REG_RECV;
+        if (i2cDataLength == 1) i2cReadRequest = REG_RECV;
         break;
     }
 
@@ -318,6 +318,7 @@ void saveFrame(CanFrame* frame) {
 
     if (indexEntry.canId == NULL) {
         debugLog("Inserting new frame");
+
         indexEntry.canId = frame->canId;
 
         indexEntry.bufferPosition = 0;
@@ -326,7 +327,6 @@ void saveFrame(CanFrame* frame) {
         canFramesCount++;
     }
 
-    indexEntry.timestamp = millis();
     canFramesBuffer[indexEntry.bufferPosition] = *frame;
 }
 
@@ -335,6 +335,7 @@ void receiveCanFrame()
     if (CAN.checkReceive() != CAN_MSGAVAIL) return;
 
     CanFrame frame;
+    frame.timestamp = millis();
     CAN.readMsgBuf(&frame.length, frame.data);
     frame.canId = CAN.getCanId();
     frame.isExtended = CAN.isExtendedFrame();
