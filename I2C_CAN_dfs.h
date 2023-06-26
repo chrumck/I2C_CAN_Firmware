@@ -15,6 +15,12 @@ typedef struct {
   byte checksum;
 } CanFrame;
 
+typedef struct {
+  unsigned long timestamp;
+  unsigned long canId;
+  byte bufferPosition;
+} CanFrameIndexEntry;
+
 // watchdog
 #define WD_SET(val,...)                                 \
     __asm__ __volatile__(                               \

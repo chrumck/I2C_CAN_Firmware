@@ -30,7 +30,10 @@
 #include "I2C_CAN_dfs.h"
 
 #define  CAN_FRAME_SIZE 16
-#define  CAN_FRAMES_BUFFER_SIZE 16
+#define  CAN_FRAMES_BUFFER_SIZE 12
+
+#define  CAN_FRAMES_INDEX_LOAD_FACTOR 3
+#define  CAN_FRAMES_INDEX_SIZE (CAN_FRAMES_BUFFER_SIZE * CAN_FRAMES_INDEX_LOAD_FACTOR)
 
 #define SPI_CS_PIN 9            // CAN Bus Shield
 #define LED_PIN 3
@@ -43,6 +46,7 @@
 MCP_CAN CAN(SPI_CS_PIN);
 
 CanFrame canFramesBuffer[CAN_FRAMES_BUFFER_SIZE];
+CanFrameIndexEntry canFramesIndex[CAN_FRAMES_INDEX_SIZE];
 
 int canFramesCount = 0;
 int canFramesWriteIndex = 0;
@@ -56,6 +60,9 @@ byte i2cReadRequest = 0;
 
 int blinkCount = 0;
 unsigned long lastBlinkTime = millis();
+
+byte isDebug = TRUE;
+#define debugLog(message) if (isDebug) Serial.println(message);
 
 byte getCheckSum(byte* data, int length)
 {
@@ -296,27 +303,42 @@ void handleI2CRead() {
     }
 }
 
+void saveFrame(CanFrame* frame) {
+    unsigned char indexPosition = frame->canId % CAN_FRAMES_INDEX_SIZE;
+    while (canFramesIndex[indexPosition].canId != NULL && canFramesIndex[indexPosition].canId != frame->canId) {
+        indexPosition = (indexPosition + 1) % CAN_FRAMES_INDEX_SIZE;
+    }
+
+    CanFrameIndexEntry indexEntry = canFramesIndex[indexPosition];
+
+    if (indexEntry.canId == NULL && canFramesCount == CAN_FRAMES_BUFFER_SIZE) {
+        debugLog("buffer full, frame dropped");
+        return;
+    }
+
+    if (indexEntry.canId == NULL) {
+        debugLog("Inserting new frame");
+        indexEntry.canId = frame->canId;
+
+        indexEntry.bufferPosition = 0;
+        while (canFramesBuffer[indexEntry.bufferPosition].canId != NULL) indexEntry.bufferPosition++;
+
+        canFramesCount++;
+    }
+
+    indexEntry.timestamp = millis();
+    canFramesBuffer[indexEntry.bufferPosition] = *frame;
+}
+
 void receiveCanFrame()
 {
     if (CAN.checkReceive() != CAN_MSGAVAIL) return;
 
-    if (canFramesCount < CAN_FRAMES_BUFFER_SIZE)
-    {
-        canFramesCount++;
-    }
-    else
-    {
-        canFramesReadIndex++;
-        if (canFramesReadIndex >= CAN_FRAMES_BUFFER_SIZE) canFramesReadIndex = 0;
-    }
-
-    CanFrame frame = canFramesBuffer[canFramesWriteIndex];
-
+    CanFrame frame;
     CAN.readMsgBuf(&frame.length, frame.data);
     frame.canId = CAN.getCanId();
     frame.isExtended = CAN.isExtendedFrame();
     frame.isRemoteRequest = CAN.isRemoteRequest();
 
-    canFramesWriteIndex++;
-    if (canFramesWriteIndex >= (CAN_FRAMES_BUFFER_SIZE)) canFramesWriteIndex = 0;
+    saveFrame(&frame);
 }
