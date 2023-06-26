@@ -81,7 +81,7 @@ void setup()
     Wire.onReceive(handleI2CWrite);
     Wire.onRequest(handleI2CRead);
 
-    while (CAN_OK != CAN.begin(canBaud))
+    while (CAN.begin(canBaud) != CAN_OK)
     {
         delay(100);
         LEDTOGGLE();
@@ -143,7 +143,7 @@ void loop()
         if (i2cDataLength != 2) break;
         if (i2cData[1] < CAN_5KBPS || i2cData[1] > CAN_1000KBPS) break;
 
-        while (CAN_OK != CAN.begin(i2cData[1])) delay(100);
+        while (CAN.begin(i2cData[1]) != CAN_OK) delay(100);
         EEPROM.write(REG_BAUD, i2cData[1]);
         break;
     }
@@ -154,7 +154,7 @@ void loop()
         byte checksum = getCheckSum(&i2cData[1], 15);
         if (checksum != i2cData[16] || i2cData[7] > 8) break;
 
-        unsigned long frameId = i2cData[4] << 24 | i2cData[3] << 16 | i2cData[2] << 8 | i2cData[1];
+        unsigned long frameId = i2cData[1] << 24 | i2cData[2] << 16 | i2cData[3] << 8 | i2cData[4];
         CAN.sendMsgBuf(frameId, i2cData[5], i2cData[7], &i2cData[8]);
         break;
     }
