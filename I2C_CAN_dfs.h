@@ -37,6 +37,19 @@ typedef struct {
         : "r0"                                          \
 )
 
+#define CAN_5KBPS 5E3
+#define CAN_10KBPS 10E3
+#define CAN_20KBPS 20E3
+#define CAN_40KBPS 40E3
+#define CAN_50KBPS 50E3
+#define CAN_80KBPS 80E3
+#define CAN_100KBPS 100E3
+#define CAN_125KBPS 125E3
+#define CAN_200KBPS 200E3
+#define CAN_250KBPS 250E3
+#define CAN_500KBPS 500E3
+#define CAN_1000KBPS 1000E3
+
 #define WDTO_15MS               0
 #define WDTO_30MS               1
 #define WDTO_60MS               2
