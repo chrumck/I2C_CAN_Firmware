@@ -4,11 +4,20 @@
 #include <EEPROM.h>
 #include "I2C_CAN_dfs.h"
 
+#define IS_DEBUG
+
 #define  CAN_FRAME_SIZE 16
-#define  CAN_FRAMES_BUFFER_SIZE 14
+
+#ifdef IS_DEBUG
+#define  CAN_FRAMES_BUFFER_SIZE 3
+#else
+#define  CAN_FRAMES_BUFFER_SIZE 15
+#endif
 
 #define  CAN_FRAMES_INDEX_LOAD_FACTOR 3
 #define  CAN_FRAMES_INDEX_SIZE (CAN_FRAMES_BUFFER_SIZE * CAN_FRAMES_INDEX_LOAD_FACTOR)
+
+#define CAN_FRAMES_PRUNE_TIME 3000
 
 #define SPI_CS_PIN 9            // CAN Bus Shield
 #define LED_PIN 3
@@ -17,6 +26,13 @@
 #define LEDON()     digitalWrite(LED_PIN, HIGH)
 #define LEDOFF()    digitalWrite(LED_PIN, LOW)
 #define LEDTOGGLE() digitalWrite(LED_PIN, 1 - digitalRead(LED_PIN))
+
+#define logMessage(logMessageString, logMessageStringParam)\
+        {\
+        char debugLogMessage[100];\
+        sprintf(debugLogMessage, logMessageString, logMessageStringParam);\
+        Serial.println(debugLogMessage);\
+        }\
 
 MCP_CAN CAN(SPI_CS_PIN);
 
@@ -27,21 +43,19 @@ int canFramesCount = 0;
 int canFramesWriteIndex = 0;
 int canFramesReadIndex = 0;
 
-byte i2cDataLength = 0;
-byte i2cData[20];
-byte i2cDataReceived = FALSE;
+u8 i2cDataLength = 0;
+u8 i2cData[20];
+u8 i2cDataReceived = FALSE;
 
-byte i2cReadRequest = 0;
+u8 i2cReadRequest = 0;
 
 int blinkCount = 0;
-unsigned long lastBlinkTime = millis();
+u32 lastBlinkTime = millis();
 
-#define IS_DEBUG TRUE
-#define debugLog(message) if (IS_DEBUG) Serial.println(message);
 
-byte getCheckSum(byte* data, int length)
+u8 getCheckSum(u8* data, int length)
 {
-    unsigned long sum = 0;
+    u32 sum = 0;
     for (int i = 0; i < length; i++) sum += data[i];
 
     if (sum > 0xff)
@@ -106,7 +120,7 @@ void setup()
     if (1 == i2cDataLength) i2cReadRequest = request;\
     if (6 != i2cDataLength) break;\
     for (int i = 0; i < 5; i++) EEPROM.write(request + i, i2cData[1 + i]);\
-    unsigned long newMaskOrFilter = i2cData[5] << 24 | i2cData[4] << 16 | i2cData[3] << 8 | i2cData[2];\
+    u32 newMaskOrFilter = i2cData[5] << 24 | i2cData[4] << 16 | i2cData[3] << 8 | i2cData[2];\
 
 void loop()
 {
@@ -151,10 +165,10 @@ void loop()
     case REG_SEND: {
         if (i2cDataLength != 17) break;
 
-        byte checksum = getCheckSum(&i2cData[1], 15);
+        u8 checksum = getCheckSum(&i2cData[1], 15);
         if (checksum != i2cData[16] || i2cData[7] > 8) break;
 
-        unsigned long frameId = i2cData[1] << 24 | i2cData[2] << 16 | i2cData[3] << 8 | i2cData[4];
+        u32 frameId = i2cData[1] << 24 | i2cData[2] << 16 | i2cData[3] << 8 | i2cData[4];
         CAN.sendMsgBuf(frameId, i2cData[5], i2cData[7], &i2cData[8]);
         break;
     }
@@ -244,7 +258,7 @@ void handleI2CRead() {
 
         CanFrame frameFromBuffer = canFramesBuffer[canFramesReadIndex];
 
-        byte frameToSend[CAN_FRAME_SIZE];
+        u8 frameToSend[CAN_FRAME_SIZE];
         frameToSend[0] = (frameFromBuffer.canId >> 24) & 0xff;
         frameToSend[1] = (frameFromBuffer.canId >> 16) & 0xff;
         frameToSend[2] = (frameFromBuffer.canId >> 8) & 0xff;
@@ -278,43 +292,76 @@ void handleI2CRead() {
     }
 }
 
-void saveFrame(CanFrame* frame) {
-    unsigned char indexPosition = frame->canId % CAN_FRAMES_INDEX_SIZE;
-    while (canFramesIndex[indexPosition].canId != NULL && canFramesIndex[indexPosition].canId != frame->canId) {
-        indexPosition = (indexPosition + 1) % CAN_FRAMES_INDEX_SIZE;
-    }
+void receiveCanFrame()
+{
+    if (CAN.checkReceive() != CAN_MSGAVAIL) return;
 
+    u32 currentTime = millis();
+    removeOldFrames(currentTime);
+
+    CanFrame frame;
+    CAN.readMsgBuf(&frame.length, frame.data);
+    frame.canId = CAN.getCanId();
+    frame.isExtended = CAN.isExtendedFrame();
+    frame.isRemoteRequest = CAN.isRemoteRequest();
+    frame.timestamp = currentTime;
+
+    saveFrame(&frame);
+}
+
+#define getIndexPosition(searchedCanId)\
+    u8 indexPosition = searchedCanId % CAN_FRAMES_INDEX_SIZE;\
+    while (canFramesIndex[indexPosition].canId != NULL && canFramesIndex[indexPosition].canId != searchedCanId) {\
+        indexPosition = (indexPosition + 1) % CAN_FRAMES_INDEX_SIZE;\
+    }\
+
+void removeOldFrames(u32 currentTime) {
+    static u32 lastRemoveTime = millis();
+    if (currentTime - lastRemoveTime < CAN_FRAMES_PRUNE_TIME) return;
+    lastRemoveTime = currentTime;
+
+    for (u8 i = 0; i < CAN_FRAMES_BUFFER_SIZE; i++)
+    {
+        CanFrame* frame = &canFramesBuffer[i];
+        if (frame->canId == NULL || frame->timestamp + CAN_FRAMES_PRUNE_TIME > currentTime) continue;
+
+        getIndexPosition(frame->canId);
+        canFramesIndex[indexPosition].canId = NULL;
+        frame->canId = NULL;
+#ifdef IS_DEBUG
+        logMessage("removed old frame 0x%x", frame->canId);
+#endif
+    }
+}
+
+void saveFrame(CanFrame* frame) {
+    getIndexPosition(frame->canId);
     CanFrameIndexEntry indexEntry = canFramesIndex[indexPosition];
 
     if (indexEntry.canId == NULL && canFramesCount == CAN_FRAMES_BUFFER_SIZE) {
-        debugLog("buffer full, frame dropped");
+#ifdef IS_DEBUG
+        logMessage("buffer full, dropping frame 0x%x", frame->canId);
+#endif
         return;
     }
 
     if (indexEntry.canId == NULL) {
-        debugLog("Inserting new frame");
-
         indexEntry.canId = frame->canId;
 
         indexEntry.bufferPosition = 0;
         while (canFramesBuffer[indexEntry.bufferPosition].canId != NULL) indexEntry.bufferPosition++;
 
+        canFramesBuffer[indexEntry.bufferPosition] = *frame;
         canFramesCount++;
+
+#ifdef IS_DEBUG
+        logMessage("Inserted new frame 0x%x", frame->canId);
+#endif
+        return;
     }
 
+    CanFrame* previousFrame = &canFramesBuffer[indexEntry.bufferPosition];
+    if (previousFrame->isSent == FALSE) frame->timestamp = previousFrame->timestamp;
+
     canFramesBuffer[indexEntry.bufferPosition] = *frame;
-}
-
-void receiveCanFrame()
-{
-    if (CAN.checkReceive() != CAN_MSGAVAIL) return;
-
-    CanFrame frame;
-    frame.timestamp = millis();
-    CAN.readMsgBuf(&frame.length, frame.data);
-    frame.canId = CAN.getCanId();
-    frame.isExtended = CAN.isExtendedFrame();
-    frame.isRemoteRequest = CAN.isRemoteRequest();
-
-    saveFrame(&frame);
 }
