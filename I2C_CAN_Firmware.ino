@@ -40,8 +40,6 @@ CanFrame canFramesBuffer[CAN_FRAMES_BUFFER_SIZE];
 CanFrameIndexEntry canFramesIndex[CAN_FRAMES_INDEX_SIZE];
 
 int canFramesCount = 0;
-int canFramesWriteIndex = 0;
-int canFramesReadIndex = 0;
 
 u8 i2cDataLength = 0;
 u8 i2cData[20];
@@ -254,7 +252,7 @@ void handleI2CRead() {
     }
 
     case REG_RECV: {
-        if (canFramesCount <= 0) break;
+        if (canFramesCount == 0) break;
 
         CanFrame frameFromBuffer = canFramesBuffer[canFramesReadIndex];
 
@@ -328,6 +326,7 @@ void removeOldFrames(u32 currentTime) {
         getIndexPosition(frame->canId);
         canFramesIndex[indexPosition].canId = NULL;
         frame->canId = NULL;
+        canFramesCount--;
 #ifdef IS_DEBUG
         logMessage("removed old frame 0x%x", frame->canId);
 #endif
@@ -355,7 +354,7 @@ void saveFrame(CanFrame* frame) {
         canFramesCount++;
 
 #ifdef IS_DEBUG
-        logMessage("Inserted new frame 0x%x", frame->canId);
+        logMessage("Added new frame 0x%x", frame->canId);
 #endif
         return;
     }
@@ -364,4 +363,24 @@ void saveFrame(CanFrame* frame) {
     if (previousFrame->isSent == FALSE) frame->timestamp = previousFrame->timestamp;
 
     canFramesBuffer[indexEntry.bufferPosition] = *frame;
+}
+
+CanFrame* getFrame(u32 frameId) {
+    if (frameId != NULL) {
+        getIndexPosition(frameId);
+        return canFramesIndex[indexPosition].canId == NULL ?
+            NULL :
+            &canFramesBuffer[canFramesIndex[indexPosition].bufferPosition];
+    }
+
+    CanFrame* oldestFrame = NULL;
+    for (u8 i = 0; i < CAN_FRAMES_BUFFER_SIZE; i++)
+    {
+        u32 oldestTimestamp = oldestFrame == NULL ? ULONG_MAX : oldestFrame->timestamp;
+        if (canFramesBuffer[i].isSent == FALSE && canFramesBuffer[i].timestamp < oldestTimestamp) {
+            oldestFrame = &canFramesBuffer[i];
+        }
+    }
+
+    return oldestFrame;
 }

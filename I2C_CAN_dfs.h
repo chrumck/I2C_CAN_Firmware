@@ -5,6 +5,7 @@
 
 #define FALSE 0
 #define TRUE 1
+#define ULONG_MAX 0xffffffff
 
 typedef struct {
   unsigned long canId;
