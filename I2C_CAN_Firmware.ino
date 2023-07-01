@@ -46,6 +46,7 @@ u8 i2cData[20];
 u8 i2cDataReceived = FALSE;
 
 u8 i2cReadRequest = 0;
+u32 readFrameId = NULL;
 
 int blinkCount = 0;
 u32 lastBlinkTime = millis();
@@ -172,7 +173,12 @@ void loop()
     }
 
     case REG_RECV: {
-        if (i2cDataLength == 1) i2cReadRequest = REG_RECV;
+        if (i2cDataLength != 1 && i2cDataLength != 5) break;
+
+        i2cReadRequest = REG_RECV;
+
+        if (i2cDataLength == 5) readFrameId = i2cData[1] << 24 | i2cData[2] << 16 | i2cData[3] << 8 | i2cData[4];
+        else readFrameId = NULL;
         break;
     }
 
@@ -252,27 +258,22 @@ void handleI2CRead() {
     }
 
     case REG_RECV: {
-        if (canFramesCount == 0) break;
-
-        CanFrame frameFromBuffer = canFramesBuffer[canFramesReadIndex];
+        CanFrame* frameFromBuffer = getFrame();
+        if (frameFromBuffer == NULL) break;
 
         u8 frameToSend[CAN_FRAME_SIZE];
-        frameToSend[0] = (frameFromBuffer.canId >> 24) & 0xff;
-        frameToSend[1] = (frameFromBuffer.canId >> 16) & 0xff;
-        frameToSend[2] = (frameFromBuffer.canId >> 8) & 0xff;
-        frameToSend[3] = (frameFromBuffer.canId >> 0) & 0xff;
-        frameToSend[4] = frameFromBuffer.isExtended;
-        frameToSend[5] = frameFromBuffer.isRemoteRequest;
-        frameToSend[6] = frameFromBuffer.length;
-        for (int i = 0; i < frameFromBuffer.length; i++) frameToSend[7 + i] = frameFromBuffer.data[i];
+        frameToSend[0] = (frameFromBuffer->canId >> 24) & 0xff;
+        frameToSend[1] = (frameFromBuffer->canId >> 16) & 0xff;
+        frameToSend[2] = (frameFromBuffer->canId >> 8) & 0xff;
+        frameToSend[3] = (frameFromBuffer->canId >> 0) & 0xff;
+        frameToSend[4] = frameFromBuffer->isExtended;
+        frameToSend[5] = frameFromBuffer->isRemoteRequest;
+        frameToSend[6] = frameFromBuffer->length;
+        for (int i = 0; i < frameFromBuffer->length; i++) frameToSend[7 + i] = frameFromBuffer->data[i];
         frameToSend[15] = getCheckSum(frameToSend, 15);
 
         for (int i = 0; i < CAN_FRAME_SIZE; i++) Wire.write(frameToSend[i]);
 
-        canFramesReadIndex++;
-        if (canFramesReadIndex >= CAN_FRAMES_BUFFER_SIZE) canFramesReadIndex = 0;
-
-        canFramesCount--;
         break;
     }
 
@@ -365,12 +366,35 @@ void saveFrame(CanFrame* frame) {
     canFramesBuffer[indexEntry.bufferPosition] = *frame;
 }
 
-CanFrame* getFrame(u32 frameId) {
-    if (frameId != NULL) {
-        getIndexPosition(frameId);
-        return canFramesIndex[indexPosition].canId == NULL ?
-            NULL :
-            &canFramesBuffer[canFramesIndex[indexPosition].bufferPosition];
+CanFrame* getFrame() {
+    if (canFramesCount == 0) {
+#ifdef IS_DEBUG
+        logMessage("frames count 0, nothing to send", NULL);
+#endif
+        return NULL;
+    }
+
+    if (readFrameId != NULL) {
+        getIndexPosition(readFrameId);
+        if (canFramesIndex[indexPosition].canId == NULL) {
+#ifdef IS_DEBUG
+            logMessage("frame 0x%x not available", readFrameId);
+#endif
+            return NULL;
+        }
+
+        CanFrame* frame = &canFramesBuffer[canFramesIndex[indexPosition].bufferPosition];
+
+#ifdef IS_DEBUG
+        if (frame->isSent) {
+            logMessage("frame 0x%x already sent", readFrameId);
+        }
+        else {
+            logMessage("sending frame 0x%x", readFrameId);
+        }
+#endif
+
+        return frame->isSent ? NULL : frame;
     }
 
     CanFrame* oldestFrame = NULL;
@@ -381,6 +405,15 @@ CanFrame* getFrame(u32 frameId) {
             oldestFrame = &canFramesBuffer[i];
         }
     }
+
+#ifdef IS_DEBUG
+    if (oldestFrame != NULL) {
+        logMessage("sending oldest frame 0x%x", oldestFrame->canId);
+    }
+    else {
+        logMessage("all frames already sent", NULL);
+    }
+#endif
 
     return oldestFrame;
 }
