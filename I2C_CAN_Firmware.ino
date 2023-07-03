@@ -257,7 +257,7 @@ void handleI2CRead() {
         CanFrame* frameFromBuffer = getFrame();
         if (frameFromBuffer == NULL) break;
 
-        u8 frameToSend[CAN_FRAME_SIZE];
+        u8 frameToSend[CAN_FRAME_SIZE] = { };
         frameToSend[0] = (frameFromBuffer->canId >> 24) & 0xff;
         frameToSend[1] = (frameFromBuffer->canId >> 16) & 0xff;
         frameToSend[2] = (frameFromBuffer->canId >> 8) & 0xff;
@@ -414,8 +414,8 @@ CanFrame* getFrame() {
         getIndexPosition(readFrameId);
         if (canFramesIndex[indexPosition].canId == NULL) {
 #ifdef IS_DEBUG
-            Serial.print("frame not available:");
-            Serial.println(readFrameId);
+            Serial.print("frame not available:0x");
+            Serial.println(readFrameId, 16);
 #endif
             return NULL;
         }

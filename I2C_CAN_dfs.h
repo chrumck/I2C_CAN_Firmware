@@ -6,13 +6,14 @@
 #define FALSE 0
 #define TRUE 1
 #define ULONG_MAX 0xffffffff
+#define CAN_DATA_SIZE 8
 
 typedef struct {
   unsigned long canId;
   byte isExtended;
   byte isRemoteRequest;
   byte length;
-  byte data[8];
+  byte data[CAN_DATA_SIZE];
   unsigned long timestamp;
   byte isSent;
 } CanFrame;
