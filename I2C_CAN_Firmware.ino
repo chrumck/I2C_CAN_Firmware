@@ -285,24 +285,18 @@ void handleI2CRead() {
 
 void receiveCanFrame()
 {
+    removeOldFrames();
+
     if (CAN.checkReceive() != CAN_MSGAVAIL) return;
-
-#ifdef IS_DEBUG
-    Serial.println("new frame available");
-#endif
-
-    u32 currentTime = millis();
-    removeOldFrames(currentTime);
 
     CanFrame frame;
     CAN.readMsgBuf(&frame.length, frame.data);
     frame.canId = CAN.getCanId();
     frame.isExtended = CAN.isExtendedFrame();
     frame.isRemoteRequest = CAN.isRemoteRequest();
-    frame.timestamp = currentTime;
+    frame.timestamp = millis();
 
     saveFrame(&frame);
-
 
 #ifdef IS_DEBUG
     Serial.println("frame saved");
@@ -315,18 +309,12 @@ void receiveCanFrame()
         indexPosition = (indexPosition + 1) % CAN_FRAMES_INDEX_SIZE;\
     }\
 
-void removeOldFrames(u32 currentTime) {
+void removeOldFrames() {
     static u32 lastRemoveTime = millis();
 
+    u32 currentTime = millis();
     if (currentTime - lastRemoveTime < CAN_FRAMES_PRUNE_TIME) return;
     lastRemoveTime = currentTime;
-
-    if (canFramesCount < CAN_FRAMES_BUFFER_SIZE) {
-#ifdef IS_DEBUG
-        Serial.println("buffer not full, skipping old frame removal");
-#endif
-        return;
-    }
 
     for (u8 i = 0; i < CAN_FRAMES_BUFFER_SIZE; i++)
     {
@@ -337,9 +325,8 @@ void removeOldFrames(u32 currentTime) {
 
 #ifdef IS_DEBUG
         Serial.print("removing old frame:");
-        Serial.println(frame->canId);
+        Serial.println(frame->canId, 16);
 #endif
-
         canFramesIndex[indexPosition].canId = NULL;
         frame->canId = NULL;
         canFramesCount--;
@@ -349,7 +336,7 @@ void removeOldFrames(u32 currentTime) {
 void saveFrame(CanFrame* frame) {
 #ifdef IS_DEBUG
     Serial.print("saving frame:");
-    Serial.println(frame->canId);
+    Serial.println(frame->canId, 16);
 #endif
 
     getIndexPosition(frame->canId);
@@ -363,7 +350,7 @@ void saveFrame(CanFrame* frame) {
     if (indexEntry->canId == NULL && canFramesCount == CAN_FRAMES_BUFFER_SIZE) {
 #ifdef IS_DEBUG
         Serial.print("buffer full, dropping frame:");
-        Serial.println(frame->canId);
+        Serial.println(frame->canId, 16);
 #endif
         return;
     }
@@ -379,7 +366,7 @@ void saveFrame(CanFrame* frame) {
 
 #ifdef IS_DEBUG
         Serial.print("added new frame:");
-        Serial.println(frame->canId);
+        Serial.println(frame->canId, 16);
 #endif
         return;
     }
@@ -389,7 +376,7 @@ void saveFrame(CanFrame* frame) {
         frame->timestamp = previousFrame->timestamp;
 #ifdef IS_DEBUG
         Serial.print("overwriting unsent frame:");
-        Serial.println(frame->canId);
+        Serial.println(frame->canId, 16);
 #endif
     }
 
@@ -397,7 +384,8 @@ void saveFrame(CanFrame* frame) {
 
 #ifdef IS_DEBUG
     Serial.print("updated frame:");
-    Serial.println(frame->canId);
+    Serial.println(frame->canId, 16);
+    Serial.println(frame->timestamp);
 #endif
 }
 
@@ -423,7 +411,7 @@ CanFrame* getFrame() {
 
 #ifdef IS_DEBUG
         Serial.print(frame->isSent ? "frame already sent:" : "sending frame:");
-        Serial.println(frame->canId);
+        Serial.println(frame->canId, 16);
 #endif
 
         return frame->isSent ? NULL : frame;
