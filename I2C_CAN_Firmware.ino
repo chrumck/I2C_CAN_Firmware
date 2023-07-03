@@ -21,7 +21,7 @@
 
 #define SPI_CS_PIN 9            // CAN Bus Shield
 #define LED_PIN 3
-#define SERIAL_BAUD_RATE 11520
+#define SERIAL_BAUD_RATE 115200
 
 #define LEDON()     digitalWrite(LED_PIN, HIGH)
 #define LEDOFF()    digitalWrite(LED_PIN, LOW)
