@@ -334,21 +334,33 @@ void removeOldFrames(u32 currentTime) {
         if (frame->canId == NULL || frame->timestamp + CAN_FRAMES_PRUNE_TIME > currentTime) continue;
 
         getIndexPosition(frame->canId);
+
+#ifdef IS_DEBUG
+        Serial.print("removing old frame:");
+        Serial.println(frame->canId);
+#endif
+
         canFramesIndex[indexPosition].canId = NULL;
         frame->canId = NULL;
         canFramesCount--;
-#ifdef IS_DEBUG
-        Serial.print("removed old frame:");
-        Serial.println(frame->canId);
-#endif
     }
 }
 
 void saveFrame(CanFrame* frame) {
-    getIndexPosition(frame->canId);
-    CanFrameIndexEntry indexEntry = canFramesIndex[indexPosition];
+#ifdef IS_DEBUG
+    Serial.print("saving frame:");
+    Serial.println(frame->canId);
+#endif
 
-    if (indexEntry.canId == NULL && canFramesCount == CAN_FRAMES_BUFFER_SIZE) {
+    getIndexPosition(frame->canId);
+    CanFrameIndexEntry* indexEntry = &canFramesIndex[indexPosition];
+
+#ifdef IS_DEBUG
+    Serial.print("index position:");
+    Serial.println(indexPosition);
+#endif
+
+    if (indexEntry->canId == NULL && canFramesCount == CAN_FRAMES_BUFFER_SIZE) {
 #ifdef IS_DEBUG
         Serial.print("buffer full, dropping frame:");
         Serial.println(frame->canId);
@@ -356,13 +368,13 @@ void saveFrame(CanFrame* frame) {
         return;
     }
 
-    if (indexEntry.canId == NULL) {
-        indexEntry.canId = frame->canId;
+    if (indexEntry->canId == NULL) {
+        indexEntry->canId = frame->canId;
 
-        indexEntry.bufferPosition = 0;
-        while (canFramesBuffer[indexEntry.bufferPosition].canId != NULL) indexEntry.bufferPosition++;
+        indexEntry->bufferPosition = 0;
+        while (canFramesBuffer[indexEntry->bufferPosition].canId != NULL) indexEntry->bufferPosition++;
 
-        canFramesBuffer[indexEntry.bufferPosition] = *frame;
+        canFramesBuffer[indexEntry->bufferPosition] = *frame;
         canFramesCount++;
 
 #ifdef IS_DEBUG
@@ -372,7 +384,7 @@ void saveFrame(CanFrame* frame) {
         return;
     }
 
-    CanFrame* previousFrame = &canFramesBuffer[indexEntry.bufferPosition];
+    CanFrame* previousFrame = &canFramesBuffer[indexEntry->bufferPosition];
     if (previousFrame->isSent == FALSE) {
         frame->timestamp = previousFrame->timestamp;
 #ifdef IS_DEBUG
@@ -381,7 +393,7 @@ void saveFrame(CanFrame* frame) {
 #endif
     }
 
-    canFramesBuffer[indexEntry.bufferPosition] = *frame;
+    canFramesBuffer[indexEntry->bufferPosition] = *frame;
 
 #ifdef IS_DEBUG
     Serial.print("updated frame:");
