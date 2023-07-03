@@ -9,7 +9,7 @@
 #define CAN_FRAME_SIZE 16
 
 #ifdef IS_DEBUG
-#define CAN_FRAMES_BUFFER_SIZE 3
+#define CAN_FRAMES_BUFFER_SIZE 2
 #else
 #define CAN_FRAMES_BUFFER_SIZE 15
 #endif
@@ -43,12 +43,6 @@ u32 readFrameId = NULL;
 
 int blinkCount = 0;
 u32 lastBlinkTime = millis();
-
-void logMessage(char* logMessageString, u32 logMessageStringParam) {
-    char debugLogMessage[100];
-    sprintf(debugLogMessage, logMessageString, logMessageStringParam);
-    Serial.println(debugLogMessage);
-}
 
 u8 getCheckSum(u8* data, int length)
 {
@@ -293,6 +287,10 @@ void receiveCanFrame()
 {
     if (CAN.checkReceive() != CAN_MSGAVAIL) return;
 
+#ifdef IS_DEBUG
+    Serial.println("new frame available");
+#endif
+
     u32 currentTime = millis();
     removeOldFrames(currentTime);
 
@@ -304,6 +302,11 @@ void receiveCanFrame()
     frame.timestamp = currentTime;
 
     saveFrame(&frame);
+
+
+#ifdef IS_DEBUG
+    Serial.println("frame saved");
+#endif
 }
 
 #define getIndexPosition(searchedCanId)\
@@ -314,8 +317,16 @@ void receiveCanFrame()
 
 void removeOldFrames(u32 currentTime) {
     static u32 lastRemoveTime = millis();
+
     if (currentTime - lastRemoveTime < CAN_FRAMES_PRUNE_TIME) return;
     lastRemoveTime = currentTime;
+
+    if (canFramesCount < CAN_FRAMES_BUFFER_SIZE) {
+#ifdef IS_DEBUG
+        Serial.println("buffer not full, skipping old frame removal");
+#endif
+        return;
+    }
 
     for (u8 i = 0; i < CAN_FRAMES_BUFFER_SIZE; i++)
     {
@@ -327,7 +338,8 @@ void removeOldFrames(u32 currentTime) {
         frame->canId = NULL;
         canFramesCount--;
 #ifdef IS_DEBUG
-        logMessage("removed old frame 0x%x", frame->canId);
+        Serial.print("removed old frame:");
+        Serial.println(frame->canId);
 #endif
     }
 }
@@ -338,7 +350,8 @@ void saveFrame(CanFrame* frame) {
 
     if (indexEntry.canId == NULL && canFramesCount == CAN_FRAMES_BUFFER_SIZE) {
 #ifdef IS_DEBUG
-        logMessage("buffer full, dropping frame 0x%x", frame->canId);
+        Serial.print("buffer full, dropping frame:");
+        Serial.println(frame->canId);
 #endif
         return;
     }
@@ -353,21 +366,33 @@ void saveFrame(CanFrame* frame) {
         canFramesCount++;
 
 #ifdef IS_DEBUG
-        logMessage("Added new frame 0x%x", frame->canId);
+        Serial.print("added new frame:");
+        Serial.println(frame->canId);
 #endif
         return;
     }
 
     CanFrame* previousFrame = &canFramesBuffer[indexEntry.bufferPosition];
-    if (previousFrame->isSent == FALSE) frame->timestamp = previousFrame->timestamp;
+    if (previousFrame->isSent == FALSE) {
+        frame->timestamp = previousFrame->timestamp;
+#ifdef IS_DEBUG
+        Serial.print("overwriting unsent frame:");
+        Serial.println(frame->canId);
+#endif
+    }
 
     canFramesBuffer[indexEntry.bufferPosition] = *frame;
+
+#ifdef IS_DEBUG
+    Serial.print("updated frame:");
+    Serial.println(frame->canId);
+#endif
 }
 
 CanFrame* getFrame() {
     if (canFramesCount == 0) {
 #ifdef IS_DEBUG
-        logMessage("frames count 0, nothing to send", NULL);
+        Serial.println("frames count 0, nothing to send");
 #endif
         return NULL;
     }
@@ -376,7 +401,8 @@ CanFrame* getFrame() {
         getIndexPosition(readFrameId);
         if (canFramesIndex[indexPosition].canId == NULL) {
 #ifdef IS_DEBUG
-            logMessage("frame 0x%x not available", readFrameId);
+            Serial.print("frame not available:");
+            Serial.println(readFrameId);
 #endif
             return NULL;
         }
@@ -384,12 +410,8 @@ CanFrame* getFrame() {
         CanFrame* frame = &canFramesBuffer[canFramesIndex[indexPosition].bufferPosition];
 
 #ifdef IS_DEBUG
-        if (frame->isSent) {
-            logMessage("frame 0x%x already sent", readFrameId);
-        }
-        else {
-            logMessage("sending frame 0x%x", readFrameId);
-        }
+        Serial.print(frame->isSent ? "frame already sent:" : "sending frame:");
+        Serial.println(frame->canId);
 #endif
 
         return frame->isSent ? NULL : frame;
@@ -406,10 +428,11 @@ CanFrame* getFrame() {
 
 #ifdef IS_DEBUG
     if (oldestFrame != NULL) {
-        logMessage("sending oldest frame 0x%x", oldestFrame->canId);
+        Serial.print("sending oldest frame:");
+        Serial.println(oldestFrame->canId);
     }
     else {
-        logMessage("all frames already sent", NULL);
+        Serial.println("all frames already sent");
     }
 #endif
 
