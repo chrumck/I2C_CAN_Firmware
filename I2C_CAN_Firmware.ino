@@ -27,13 +27,6 @@
 #define LEDOFF()    digitalWrite(LED_PIN, LOW)
 #define LEDTOGGLE() digitalWrite(LED_PIN, 1 - digitalRead(LED_PIN))
 
-#define logMessage(logMessageString, logMessageStringParam)\
-        {\
-        char debugLogMessage[100];\
-        sprintf(debugLogMessage, logMessageString, logMessageStringParam);\
-        Serial.println(debugLogMessage);\
-        }\
-
 MCP_CAN CAN(SPI_CS_PIN);
 
 CanFrame canFramesBuffer[CAN_FRAMES_BUFFER_SIZE];
@@ -51,6 +44,11 @@ u32 readFrameId = NULL;
 int blinkCount = 0;
 u32 lastBlinkTime = millis();
 
+void logMessage(char* logMessageString, u32 logMessageStringParam) {
+    char debugLogMessage[100];
+    sprintf(debugLogMessage, logMessageString, logMessageStringParam);
+    Serial.println(debugLogMessage);
+}
 
 u8 getCheckSum(u8* data, int length)
 {
