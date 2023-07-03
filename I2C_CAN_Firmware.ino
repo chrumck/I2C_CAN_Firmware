@@ -301,10 +301,6 @@ void receiveCanFrame()
     frame.timestamp = millis();
 
     saveFrame(&frame);
-
-#ifdef IS_DEBUG
-    Serial.println("frame saved");
-#endif
 }
 
 #define getIndexPosition(searchedCanId)\
@@ -330,8 +326,10 @@ void removeOldFrames() {
 #ifdef IS_DEBUG
         Serial.print("removing old frame:");
         Serial.print(frame->canId, 16);
-        Serial.print(" index position:");
+        Serial.print(" index:");
         Serial.println(indexPosition);
+        Serial.print(" buffer:");
+        Serial.println(i);
 #endif
         canFramesIndex[indexPosition].canId = NULL;
         frame->canId = NULL;
@@ -343,7 +341,7 @@ void saveFrame(CanFrame* frame) {
 #ifdef IS_DEBUG
     Serial.print("saving frame:");
     Serial.print(frame->canId, 16);
-    Serial.print(" frame length:");
+    Serial.print(" length:");
     Serial.println(frame->length);
 #endif
 
@@ -351,7 +349,7 @@ void saveFrame(CanFrame* frame) {
     CanFrameIndexEntry* indexEntry = &canFramesIndex[indexPosition];
 
 #ifdef IS_DEBUG
-    Serial.print("index position:");
+    Serial.print("index:");
     Serial.println(indexPosition);
 #endif
 
@@ -375,7 +373,7 @@ void saveFrame(CanFrame* frame) {
 #ifdef IS_DEBUG
         Serial.print("added new frame:");
         Serial.print(frame->canId, 16);
-        Serial.print(" buffer position:");
+        Serial.print(" buffer:");
         Serial.println(indexEntry->bufferPosition);
 #endif
         return;
@@ -397,7 +395,7 @@ void saveFrame(CanFrame* frame) {
     Serial.print(frame->canId, 16);
     Serial.print(" timestamp:");
     Serial.print(frame->timestamp);
-    Serial.print(" buffer position:");
+    Serial.print(" buffer:");
     Serial.println(indexEntry->bufferPosition);
 #endif
 }
