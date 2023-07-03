@@ -17,7 +17,11 @@
 #define CAN_FRAMES_INDEX_LOAD_FACTOR 3
 #define CAN_FRAMES_INDEX_SIZE (CAN_FRAMES_BUFFER_SIZE * CAN_FRAMES_INDEX_LOAD_FACTOR)
 
+#ifdef IS_DEBUG
+#define CAN_FRAMES_PRUNE_TIME 15000
+#else
 #define CAN_FRAMES_PRUNE_TIME 3000
+#endif
 
 #define SPI_CS_PIN 9            // CAN Bus Shield
 #define LED_PIN 3
@@ -289,7 +293,7 @@ void receiveCanFrame()
 
     if (CAN.checkReceive() != CAN_MSGAVAIL) return;
 
-    CanFrame frame;
+    CanFrame frame = { };
     CAN.readMsgBuf(&frame.length, frame.data);
     frame.canId = CAN.getCanId();
     frame.isExtended = CAN.isExtendedFrame();
@@ -325,7 +329,9 @@ void removeOldFrames() {
 
 #ifdef IS_DEBUG
         Serial.print("removing old frame:");
-        Serial.println(frame->canId, 16);
+        Serial.print(frame->canId, 16);
+        Serial.print(" index position:");
+        Serial.println(indexPosition);
 #endif
         canFramesIndex[indexPosition].canId = NULL;
         frame->canId = NULL;
@@ -336,7 +342,9 @@ void removeOldFrames() {
 void saveFrame(CanFrame* frame) {
 #ifdef IS_DEBUG
     Serial.print("saving frame:");
-    Serial.println(frame->canId, 16);
+    Serial.print(frame->canId, 16);
+    Serial.print(" frame length:");
+    Serial.println(frame->length);
 #endif
 
     getIndexPosition(frame->canId);
@@ -366,7 +374,9 @@ void saveFrame(CanFrame* frame) {
 
 #ifdef IS_DEBUG
         Serial.print("added new frame:");
-        Serial.println(frame->canId, 16);
+        Serial.print(frame->canId, 16);
+        Serial.print(" buffer position:");
+        Serial.println(indexEntry->bufferPosition);
 #endif
         return;
     }
@@ -384,8 +394,11 @@ void saveFrame(CanFrame* frame) {
 
 #ifdef IS_DEBUG
     Serial.print("updated frame:");
-    Serial.println(frame->canId, 16);
-    Serial.println(frame->timestamp);
+    Serial.print(frame->canId, 16);
+    Serial.print(" timestamp:");
+    Serial.print(frame->timestamp);
+    Serial.print(" buffer position:");
+    Serial.println(indexEntry->bufferPosition);
 #endif
 }
 
