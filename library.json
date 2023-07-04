@@ -1,11 +1,11 @@
 {
-  "name": "I2C CAN Bus Module",
+  "name": "I2C CAN Bus Module - fork from SjoerdQ, Longan-Labs ",
   "keywords": "can, bus, mcp2515, MCP-2515",
   "description": "Arduino Library for I2C CAN Bus Module",
   "repository":
   {
     "type": "git",
-    "url": "https://github.com/Longan-Labs/I2C_CAN_Arduino"
+    "url": "https://github.com/chrumck/I2C_CAN_Firmware"
   },
   "version": "1.0.0",
   "frameworks": "arduino",
