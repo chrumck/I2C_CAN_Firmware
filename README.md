@@ -1,4 +1,4 @@
-# Firmware for Longan Labs [I2C CAN Bus Module](https://www.longan-labs.cc/1030017.html) - Knurdash Fork
+# Firmware for Longan Labs [I2C CAN Bus Module](https://www.longan-labs.cc/1030017.html) - [Knurdash](https://github.com/chrumck/KnurDash) Fork
 
 ## Description
 
@@ -9,6 +9,8 @@ The dictionary is a custom implementation of a [hash table with linear probing](
 The dictionary can hold up to 15 frames with unique frame ids. If a new frame arrives with the id already stored in the dictionary, the old frame is replaced with the new one. If the dictionary is full and a frame arrives with an id not in the dictionary, the frame is dropped.
 
 Frames which are not retrieved through I2C for a while are periodically removed from the dictionary, giving a chance to frames ids which were not in the dictionary to take their place.
+
+The firmware has been developed as part of the [KnurDash](https://github.com/chrumck/KnurDash) project.
 
 ---
 
