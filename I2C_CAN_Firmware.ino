@@ -260,6 +260,11 @@ void handleI2CRead() {
     }
 
     case REG_RECV: {
+#ifdef IS_DEBUG
+        Serial.print("sending frame:0x");
+        Serial.println(readFrameId, 16);
+#endif
+
         CanFrame* frameFromBuffer = getFrame();
         if (frameFromBuffer == NULL) break;
 
