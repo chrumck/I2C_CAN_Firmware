@@ -115,7 +115,7 @@ void setup()
     if (1 == i2cDataLength) i2cReadRequest = request;\
     if (6 != i2cDataLength) break;\
     for (int i = 0; i < 5; i++) EEPROM.write(request + i, i2cData[1 + i]);\
-    u32 newMaskOrFilter = i2cData[5] << 24 | i2cData[4] << 16 | i2cData[3] << 8 | i2cData[2];\
+    u32 newMaskOrFilter = i2cData[2] << 24 | i2cData[3] << 16 | i2cData[4] << 8 | i2cData[5];\
 
 void loop()
 {
@@ -132,6 +132,13 @@ void loop()
     i2cDataReceived = FALSE;
 
     if (i2cDataLength == 0) return;
+
+#ifdef IS_DEBUG
+    Serial.print("i2c request on register:0x");
+    Serial.print(i2cData[0], 16);
+    Serial.print(", data length:");
+    Serial.println(i2cDataLength, 10);
+#endif
 
     switch (i2cData[0]) {
 
@@ -240,7 +247,6 @@ void handleI2CWrite(int howMany)
 }\
 
 void handleI2CRead() {
-
     switch (i2cReadRequest) {
 
     case REG_BAUD: {
