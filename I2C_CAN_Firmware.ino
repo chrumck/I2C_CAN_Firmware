@@ -240,6 +240,11 @@ void handleI2CWrite(int howMany)
 }\
 
 void handleI2CRead() {
+#ifdef IS_DEBUG
+    Serial.print("got read request, current register:0x");
+    Serial.println(i2cReadRequest, 16);
+#endif
+
     switch (i2cReadRequest) {
 
     case REG_BAUD: {
