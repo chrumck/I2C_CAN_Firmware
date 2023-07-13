@@ -42,7 +42,7 @@ u8 i2cDataLength = 0;
 u8 i2cData[20];
 u8 i2cDataReceived = FALSE;
 
-u8 i2cReadRequest = 0;
+u8 i2cReadRequest = NULL;
 u32 readFrameId = NULL;
 
 int blinkCount = 0;
@@ -132,13 +132,6 @@ void loop()
     i2cDataReceived = FALSE;
 
     if (i2cDataLength == 0) return;
-
-#ifdef IS_DEBUG
-    Serial.print("i2c request on register:0x");
-    Serial.print(i2cData[0], 16);
-    Serial.print(", data length:");
-    Serial.println(i2cDataLength, 10);
-#endif
 
     switch (i2cData[0]) {
 
@@ -261,7 +254,7 @@ void handleI2CRead() {
 
     case REG_RECV: {
 #ifdef IS_DEBUG
-        Serial.print("sending frame:0x");
+        Serial.print("got request for frame:0x");
         Serial.println(readFrameId, 16);
 #endif
 
