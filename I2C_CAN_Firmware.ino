@@ -240,11 +240,6 @@ void handleI2CWrite(int howMany)
 }\
 
 void handleI2CRead() {
-#ifdef IS_DEBUG
-    Serial.print("got read request, current register:0x");
-    Serial.println(i2cReadRequest, 16);
-#endif
-
     switch (i2cReadRequest) {
 
     case REG_BAUD: {
@@ -258,11 +253,6 @@ void handleI2CRead() {
     }
 
     case REG_RECV: {
-#ifdef IS_DEBUG
-        Serial.print("got request for frame:0x");
-        Serial.println(readFrameId, 16);
-#endif
-
         CanFrame* frameFromBuffer = getFrame();
         if (frameFromBuffer == NULL) break;
 
