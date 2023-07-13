@@ -33,10 +33,10 @@
 
 MCP_CAN CAN(SPI_CS_PIN);
 
-CanFrame canFramesBuffer[CAN_FRAMES_BUFFER_SIZE];
-CanFrameIndexEntry canFramesIndex[CAN_FRAMES_INDEX_SIZE];
+CanFrame canFramesBuffer[CAN_FRAMES_BUFFER_SIZE] = { 0 };
+CanFrameIndexEntry canFramesIndex[CAN_FRAMES_INDEX_SIZE] = { 0 };
 
-int canFramesCount = 0;
+u8 canFramesCount = 0;
 
 u8 i2cDataLength = 0;
 u8 i2cData[20];
@@ -368,7 +368,7 @@ void saveFrame(CanFrame* frame) {
     if (previousFrame->isSent == FALSE) frame->timestamp = previousFrame->timestamp;
 
     canFramesBuffer[indexEntry->bufferPosition] = *frame;
-    }
+}
 
 CanFrame* getFrame() {
     if (canFramesCount == 0) return NULL;
