@@ -111,10 +111,10 @@ void setup()
         }\
     }\
 
-#define processMaskOrFilterRequest(request)\
-    if (i2cDataLength == 1) i2cReadRequest = request;\
+#define processMaskOrFilterRequest(_register)\
+    if (i2cDataLength == 1) i2cReadRequest = _register;\
     if (i2cDataLength != 6) break;\
-    for (int i = 0; i < 5; i++) EEPROM.write(request + i, i2cData[1 + i]);\
+    for (int i = 0; i < 5; i++) EEPROM.write(_register + i, i2cData[1 + i]);\
     u32 newMaskOrFilter = i2cData[2] << 24 | i2cData[3] << 16 | i2cData[4] << 8 | i2cData[5];\
 
 void loop()
@@ -234,8 +234,8 @@ void handleI2CWrite(int howMany)
     if (i2cDataLength > 0) i2cDataReceived = TRUE;
 }
 
-#define sendMaskOrFilter(regIndex) {\
-     for (int i = 0; i < 5; i++) Wire.write(EEPROM.read(regIndex + i));\
+#define sendMaskOrFilter(_register) {\
+     for (int i = 0; i < 5; i++) Wire.write(EEPROM.read(_register + i));\
      break;\
 }\
 
