@@ -4,7 +4,7 @@
 #include <EEPROM.h>
 #include "I2C_CAN_dfs.h"
 
-#define IS_DEBUG
+// #define IS_DEBUG
 
 #define CAN_FRAME_SIZE 16
 
@@ -63,6 +63,13 @@ u8 getCheckSum(u8* data, int length)
     return sum;
 }
 
+u32 getMaskOrFilterValue(u8 regAddress) {
+    return EEPROM.read(regAddress + 1) << 24 |
+        EEPROM.read(regAddress + 2) << 16 |
+        EEPROM.read(regAddress + 3) << 8 |
+        EEPROM.read(regAddress + 4);
+}
+
 void setup()
 {
     pinMode(LED_PIN, OUTPUT);
@@ -96,6 +103,15 @@ void setup()
         LEDTOGGLE();
         Serial.println("CAN FAIL");
     }
+
+    CAN.init_Mask(0, EEPROM.read(REG_MASK0), getMaskOrFilterValue(REG_MASK0));
+    CAN.init_Mask(1, EEPROM.read(REG_MASK1), getMaskOrFilterValue(REG_MASK1));
+    CAN.init_Filt(0, EEPROM.read(REG_FILT0), getMaskOrFilterValue(REG_FILT0));
+    CAN.init_Filt(1, EEPROM.read(REG_FILT1), getMaskOrFilterValue(REG_FILT1));
+    CAN.init_Filt(2, EEPROM.read(REG_FILT2), getMaskOrFilterValue(REG_FILT2));
+    CAN.init_Filt(3, EEPROM.read(REG_FILT3), getMaskOrFilterValue(REG_FILT3));
+    CAN.init_Filt(4, EEPROM.read(REG_FILT4), getMaskOrFilterValue(REG_FILT4));
+    CAN.init_Filt(5, EEPROM.read(REG_FILT5), getMaskOrFilterValue(REG_FILT5));
 
     LEDON();
 
@@ -324,14 +340,6 @@ void removeOldFrames() {
 
         getIndexPosition(frame->canId);
 
-#ifdef IS_DEBUG
-        Serial.print("removing old frame:0x");
-        Serial.print(frame->canId, 16);
-        Serial.print(" index:");
-        Serial.print(indexPosition);
-        Serial.print(" buffer:");
-        Serial.println(i);
-#endif
         canFramesIndex[indexPosition].canId = NULL;
         frame->canId = NULL;
         canFramesCount--;
@@ -339,28 +347,10 @@ void removeOldFrames() {
 }
 
 void saveFrame(CanFrame* frame) {
-#ifdef IS_DEBUG
-    Serial.print("saving frame:0x");
-    Serial.print(frame->canId, 16);
-    Serial.print(" length:");
-    Serial.println(frame->length);
-#endif
-
     getIndexPosition(frame->canId);
     CanFrameIndexEntry* indexEntry = &canFramesIndex[indexPosition];
 
-#ifdef IS_DEBUG
-    Serial.print("trying to save under index:");
-    Serial.println(indexPosition);
-#endif
-
-    if (indexEntry->canId == NULL && canFramesCount == CAN_FRAMES_BUFFER_SIZE) {
-#ifdef IS_DEBUG
-        Serial.print("buffer full, dropping frame:0x");
-        Serial.println(frame->canId, 16);
-#endif
-        return;
-    }
+    if (indexEntry->canId == NULL && canFramesCount == CAN_FRAMES_BUFFER_SIZE) return;
 
     if (indexEntry->canId == NULL) {
         indexEntry->canId = frame->canId;
@@ -371,61 +361,24 @@ void saveFrame(CanFrame* frame) {
         canFramesBuffer[indexEntry->bufferPosition] = *frame;
         canFramesCount++;
 
-#ifdef IS_DEBUG
-        Serial.print("added new frame:0x");
-        Serial.print(frame->canId, 16);
-        Serial.print(" buffer:");
-        Serial.println(indexEntry->bufferPosition);
-#endif
         return;
     }
 
     CanFrame* previousFrame = &canFramesBuffer[indexEntry->bufferPosition];
-    if (previousFrame->isSent == FALSE) {
-        frame->timestamp = previousFrame->timestamp;
-#ifdef IS_DEBUG
-        Serial.print("overwriting unsent frame:0x");
-        Serial.println(frame->canId, 16);
-#endif
-    }
+    if (previousFrame->isSent == FALSE) frame->timestamp = previousFrame->timestamp;
 
     canFramesBuffer[indexEntry->bufferPosition] = *frame;
-
-#ifdef IS_DEBUG
-    Serial.print("updated frame:0x");
-    Serial.print(frame->canId, 16);
-    Serial.print(" timestamp:");
-    Serial.print(frame->timestamp);
-    Serial.print(" buffer:");
-    Serial.println(indexEntry->bufferPosition);
-#endif
-}
+    }
 
 CanFrame* getFrame() {
-    if (canFramesCount == 0) {
-#ifdef IS_DEBUG
-        Serial.println("frames count 0, nothing to send");
-#endif
-        return NULL;
-    }
+    if (canFramesCount == 0) return NULL;
+
 
     if (readFrameId != NULL) {
         getIndexPosition(readFrameId);
-        if (canFramesIndex[indexPosition].canId == NULL) {
-#ifdef IS_DEBUG
-            Serial.print("frame not available:0x");
-            Serial.println(readFrameId, 16);
-#endif
-            return NULL;
-        }
+        if (canFramesIndex[indexPosition].canId == NULL) return NULL;
 
         CanFrame* frame = &canFramesBuffer[canFramesIndex[indexPosition].bufferPosition];
-
-#ifdef IS_DEBUG
-        Serial.print(frame->isSent ? "frame already sent:0x" : "sending frame:0x");
-        Serial.println(frame->canId, 16);
-#endif
-
         return frame->isSent ? NULL : frame;
     }
 
@@ -439,16 +392,6 @@ CanFrame* getFrame() {
             oldestFrame = &canFramesBuffer[i];
         }
     }
-
-#ifdef IS_DEBUG
-    if (oldestFrame != NULL) {
-        Serial.print("sending oldest frame:0x");
-        Serial.println(oldestFrame->canId, 16);
-    }
-    else {
-        Serial.println("all frames already sent");
-    }
-#endif
 
     return oldestFrame;
 }
