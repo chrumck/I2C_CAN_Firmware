@@ -23,6 +23,8 @@
 #define CAN_FRAMES_PRUNE_TIME 3000
 #endif
 
+#define REQUEST_REJECTED_RESPONSE 255
+
 #define SPI_CS_PIN 9            // CAN Bus Shield
 #define LED_PIN 3
 #define SERIAL_BAUD_RATE 115200
@@ -38,12 +40,11 @@ CanFrameIndexEntry canFramesIndex[CAN_FRAMES_INDEX_SIZE] = { 0 };
 
 u8 canFramesCount = 0;
 
-u8 i2cDataLength = 0;
+volatile u8 i2cReceivedLength = 0;
+volatile u8 i2cReceiveRejected = FALSE;
+volatile u8 i2cReadRequest = NULL;
+volatile CanFrame* i2cRequestedFrame = NULL;
 u8 i2cData[20];
-u8 i2cDataReceived = FALSE;
-
-u8 i2cReadRequest = NULL;
-u32 readFrameId = NULL;
 
 int blinkCount = 0;
 u32 lastBlinkTime = millis();
@@ -128,8 +129,8 @@ void setup()
     }\
 
 #define processMaskOrFilterRequest(_register)\
-    if (i2cDataLength == 1) i2cReadRequest = _register;\
-    if (i2cDataLength != 6) break;\
+    if (i2cReceivedLength == 1) i2cReadRequest = _register;\
+    if (i2cReceivedLength != 6) break;\
     for (int i = 0; i < 5; i++) EEPROM.write(_register + i, i2cData[1 + i]);\
     u32 newMaskOrFilter = i2cData[2] << 24 | i2cData[3] << 16 | i2cData[4] << 8 | i2cData[5];\
 
@@ -141,31 +142,27 @@ void loop()
 
     WDR();
 
-    if (i2cDataReceived == FALSE) return;
+    if (i2cReceivedLength == 0) return;
 
     if (blinkCount == 0) blinkCount = 2;
-
-    i2cDataReceived = FALSE;
-
-    if (i2cDataLength == 0) return;
 
     switch (i2cData[0]) {
 
     case REG_ADDR: {
-        if (i2cDataLength != 2) break;
+        if (i2cReceivedLength != 2) break;
         EEPROM.write(REG_ADDR, i2cData[1]);
         while (TRUE);
         break;
     }
 
     case REG_DNUM: {
-        if (i2cDataLength == 1) i2cReadRequest = REG_DNUM;
+        if (i2cReceivedLength == 1) i2cReadRequest = REG_DNUM;
         break;
     }
 
     case REG_BAUD: {
-        if (i2cDataLength == 1) i2cReadRequest = REG_BAUD;
-        if (i2cDataLength != 2) break;
+        if (i2cReceivedLength == 1) i2cReadRequest = REG_BAUD;
+        if (i2cReceivedLength != 2) break;
         if (i2cData[1] < CAN_5KBPS || i2cData[1] > CAN_1000KBPS) break;
 
         while (CAN.begin(i2cData[1]) != CAN_OK) delay(100);
@@ -174,7 +171,7 @@ void loop()
     }
 
     case REG_SEND: {
-        if (i2cDataLength != 17) break;
+        if (i2cReceivedLength != 17) break;
 
         u8 checksum = getCheckSum(&i2cData[1], 15);
         if (checksum != i2cData[16] || i2cData[7] > 8) break;
@@ -185,12 +182,16 @@ void loop()
     }
 
     case REG_RECV: {
-        if (i2cDataLength != 1 && i2cDataLength != 5) break;
-
+        if (i2cReceivedLength != 1 && i2cReceivedLength != 5) break;
         i2cReadRequest = REG_RECV;
 
-        if (i2cDataLength == 5) readFrameId = i2cData[1] << 24 | i2cData[2] << 16 | i2cData[3] << 8 | i2cData[4];
-        else readFrameId = NULL;
+        if (i2cReceivedLength == 5) {
+            i2cRequestedFrame = getFrame(i2cData[1] << 24 | i2cData[2] << 16 | i2cData[3] << 8 | i2cData[4]);
+        }
+        else {
+            i2cRequestedFrame = NULL;
+        }
+
         break;
     }
 
@@ -241,13 +242,18 @@ void loop()
         break;
     }
 
-    i2cDataLength = 0;
+    i2cReceivedLength = 0;
 }
 
 void receiveFromI2C(int howMany)
 {
-    while (Wire.available() > 0) i2cData[i2cDataLength++] = Wire.read();
-    if (i2cDataLength > 0) i2cDataReceived = TRUE;
+    if (i2cReceivedLength != 0) {
+        i2cReceiveRejected = TRUE;
+        return;
+    }
+
+    i2cReceiveRejected = FALSE;
+    while (Wire.available() > 0) i2cData[i2cReceivedLength++] = Wire.read();
 }
 
 #define sendMaskOrFilter(_register) {\
@@ -256,6 +262,11 @@ void receiveFromI2C(int howMany)
 }\
 
 void sendToI2C() {
+    if (i2cReceiveRejected) {
+        Wire.write(REQUEST_REJECTED_RESPONSE);
+        return;
+    }
+
     switch (i2cReadRequest) {
 
     case REG_BAUD: {
@@ -269,23 +280,22 @@ void sendToI2C() {
     }
 
     case REG_RECV: {
-        CanFrame* frameFromBuffer = getFrame();
-        if (frameFromBuffer == NULL) break;
+        if (i2cRequestedFrame == NULL) break;
 
         u8 frameToSend[CAN_FRAME_SIZE] = { };
-        frameToSend[0] = (frameFromBuffer->canId >> 24) & 0xff;
-        frameToSend[1] = (frameFromBuffer->canId >> 16) & 0xff;
-        frameToSend[2] = (frameFromBuffer->canId >> 8) & 0xff;
-        frameToSend[3] = (frameFromBuffer->canId >> 0) & 0xff;
-        frameToSend[4] = frameFromBuffer->isExtended;
-        frameToSend[5] = frameFromBuffer->isRemoteRequest;
-        frameToSend[6] = frameFromBuffer->length;
-        for (int i = 0; i < frameFromBuffer->length; i++) frameToSend[7 + i] = frameFromBuffer->data[i];
+        frameToSend[0] = (i2cRequestedFrame->canId >> 24) & 0xff;
+        frameToSend[1] = (i2cRequestedFrame->canId >> 16) & 0xff;
+        frameToSend[2] = (i2cRequestedFrame->canId >> 8) & 0xff;
+        frameToSend[3] = (i2cRequestedFrame->canId >> 0) & 0xff;
+        frameToSend[4] = i2cRequestedFrame->isExtended;
+        frameToSend[5] = i2cRequestedFrame->isRemoteRequest;
+        frameToSend[6] = i2cRequestedFrame->length;
+        for (int i = 0; i < i2cRequestedFrame->length; i++) frameToSend[7 + i] = i2cRequestedFrame->data[i];
         frameToSend[15] = getCheckSum(frameToSend, 15);
 
         for (int i = 0; i < CAN_FRAME_SIZE; i++) Wire.write(frameToSend[i]);
 
-        frameFromBuffer->isSent = TRUE;
+        i2cRequestedFrame->isSent = TRUE;
 
         break;
     }
@@ -320,9 +330,9 @@ void receiveCanFrame()
     saveFrame(&frame);
 }
 
-#define getIndexPosition(searchedCanId)\
-    u8 indexPosition = searchedCanId % CAN_FRAMES_INDEX_SIZE;\
-    while (canFramesIndex[indexPosition].canId != NULL && canFramesIndex[indexPosition].canId != searchedCanId) {\
+#define getIndexPosition(_searchedCanId)\
+    u8 indexPosition = _searchedCanId % CAN_FRAMES_INDEX_SIZE;\
+    while (canFramesIndex[indexPosition].canId != NULL && canFramesIndex[indexPosition].canId != _searchedCanId) {\
         indexPosition = (indexPosition + 1) % CAN_FRAMES_INDEX_SIZE;\
     }\
 
@@ -407,7 +417,7 @@ void saveFrame(CanFrame* frame) {
 #endif
 }
 
-CanFrame* getFrame() {
+CanFrame* getFrame(u32 frameId) {
     if (canFramesCount == 0) {
 #ifdef IS_DEBUG
         Serial.println("frames count 0, nothing to send");
@@ -416,13 +426,15 @@ CanFrame* getFrame() {
     }
 
 
-    if (readFrameId != NULL) {
-        getIndexPosition(readFrameId);
+    if (frameId != NULL) {
+        getIndexPosition(frameId);
         if (canFramesIndex[indexPosition].canId == NULL) {
+
 #ifdef IS_DEBUG
             Serial.print("frame not available:0x");
-            Serial.println(readFrameId, 16);
+            Serial.println(frameId, 16);
 #endif
+
             return NULL;
         }
 
@@ -433,7 +445,10 @@ CanFrame* getFrame() {
         Serial.println(frame->canId, 16);
 #endif
 
-        return frame->isSent ? NULL : frame;
+        if (frame->isSent) return NULL;
+
+        frame->isSent = TRUE;
+        return;
     }
 
     CanFrame* oldestFrame = NULL;
