@@ -313,9 +313,9 @@ void sendToI2C() {
 
 void receiveCanFrame()
 {
-    removeOldFrames();
-
     if (CAN.checkReceive() != CAN_MSGAVAIL) return;
+
+    if (canFramesCount == CAN_FRAMES_BUFFER_SIZE) removeOldFrames();
 
     CanFrame frame = { };
     CAN.readMsgBuf(&frame.length, frame.data);
