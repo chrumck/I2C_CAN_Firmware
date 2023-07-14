@@ -4,12 +4,12 @@
 #include <EEPROM.h>
 #include "I2C_CAN_dfs.h"
 
-// #define IS_DEBUG
+#define IS_DEBUG
 
 #define CAN_FRAME_SIZE 16
 
 #ifdef IS_DEBUG
-#define CAN_FRAMES_BUFFER_SIZE 2
+#define CAN_FRAMES_BUFFER_SIZE 4
 #else
 #define CAN_FRAMES_BUFFER_SIZE 15
 #endif
@@ -105,6 +105,7 @@ void setup()
         Serial.println("CAN FAIL");
     }
 
+#ifndef IS_DEBUG
     CAN.init_Mask(0, EEPROM.read(REG_MASK0), getMaskOrFilterValue(REG_MASK0));
     CAN.init_Mask(1, EEPROM.read(REG_MASK1), getMaskOrFilterValue(REG_MASK1));
     CAN.init_Filt(0, EEPROM.read(REG_FILT0), getMaskOrFilterValue(REG_FILT0));
@@ -113,7 +114,7 @@ void setup()
     CAN.init_Filt(3, EEPROM.read(REG_FILT3), getMaskOrFilterValue(REG_FILT3));
     CAN.init_Filt(4, EEPROM.read(REG_FILT4), getMaskOrFilterValue(REG_FILT4));
     CAN.init_Filt(5, EEPROM.read(REG_FILT5), getMaskOrFilterValue(REG_FILT5));
-
+#endif
     LEDON();
 
     WD_SET(WD_RST, WDTO_1S);
