@@ -14,12 +14,18 @@ The firmware has been developed as part of the [KnurDash](https://github.com/chr
 
 ---
 
-## Installation of Arduino libraries
+## Installation of Arduino Libraries
 
 This project requires two libraries to be installed prior to flashing the controller:
 
 - **[Longan Labs CAN BUS MCP2515 Library](https://github.com/Longan-Labs/Aruino_CAN_BUS_MCP2515)** - Driver for the MPC2515 CAN Bus transceiver.
 - **[SBWire](https://github.com/freespace/SBWire)** - Replacement for the default Arduino Wire (i<sup>2</sup>c) library with basic timeouts to fix the board from occasionally not correctly responding to messages.
+
+---
+
+## Rejected I<sup>2</sup>C Requests
+
+In order to give the module enough time to process I2C requests, there should be a short interval introduced between the I2C write command and the read command. If the two commands are sent with too short of an interval, the controller will respond with a 'rejected' message in the form of four bytes representing the value `0x00000000`.
 
 ---
 
@@ -47,13 +53,17 @@ The following table contains the various registers that are available on the i2c
 
 ---
 
-## 0x40 - Read CAN frame
+## 0x40 - Read CAN Frame
 
 If data is requested without any additional bytes passed, the code defaults back to FIFO behavior and serves the oldest available frame. Conversely, if four big-endian bytes representing the 32-bit frame id are passed to the register, the latest frame with that id is returned if the frame is available in the dictionary.
 
+### No Frames Available
+
+If the oldest frame, or the frame for the given id, is not available, the module will respond with four bytes representing the value `0x00000001`.
+
 ---
 
-## 0x03 - CAN baudrates
+## 0x03 - CAN Baud Rates
 
 | Value  | CAN Baudrate (kb/s) |
 | ------ | ------------------- |
