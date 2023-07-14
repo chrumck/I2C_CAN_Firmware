@@ -23,7 +23,8 @@
 #define CAN_FRAMES_PRUNE_TIME 3000
 #endif
 
-#define REQUEST_REJECTED_RESPONSE 0x0
+#define REQUEST_REJECTED_RESPONSE 0x00000000
+#define NO_FRAMES_AVAILABLE_RESPONSE 0x00000001
 
 #define SPI_CS_PIN 9            // CAN Bus Shield
 #define LED_PIN 3
@@ -264,10 +265,10 @@ void receiveFromI2C(int howMany)
 
 void sendToI2C() {
     if (i2cReceiveRejected || i2cReceivedLength != 0) {
-        Wire.write(REQUEST_REJECTED_RESPONSE);
-        Wire.write(REQUEST_REJECTED_RESPONSE);
-        Wire.write(REQUEST_REJECTED_RESPONSE);
-        Wire.write(REQUEST_REJECTED_RESPONSE);
+        Wire.write((REQUEST_REJECTED_RESPONSE >> 24) & 0xFF);
+        Wire.write((REQUEST_REJECTED_RESPONSE >> 16) & 0xFF);
+        Wire.write((REQUEST_REJECTED_RESPONSE >> 8) & 0xFF);
+        Wire.write((REQUEST_REJECTED_RESPONSE) & 0xFF);
         return;
     }
 
@@ -284,13 +285,19 @@ void sendToI2C() {
     }
 
     case REG_RECV: {
-        if (i2cRequestedFrame == NULL) break;
+        if (i2cRequestedFrame == NULL) {
+            Wire.write((NO_FRAMES_AVAILABLE_RESPONSE >> 24) & 0xFF);
+            Wire.write((NO_FRAMES_AVAILABLE_RESPONSE >> 16) & 0xFF);
+            Wire.write((NO_FRAMES_AVAILABLE_RESPONSE >> 8) & 0xFF);
+            Wire.write((NO_FRAMES_AVAILABLE_RESPONSE) & 0xFF);
+            break;
+        }
 
         u8 frameToSend[CAN_FRAME_SIZE] = { };
         frameToSend[0] = (i2cRequestedFrame->canId >> 24) & 0xff;
         frameToSend[1] = (i2cRequestedFrame->canId >> 16) & 0xff;
         frameToSend[2] = (i2cRequestedFrame->canId >> 8) & 0xff;
-        frameToSend[3] = (i2cRequestedFrame->canId >> 0) & 0xff;
+        frameToSend[3] = (i2cRequestedFrame->canId) & 0xff;
         frameToSend[4] = i2cRequestedFrame->isExtended;
         frameToSend[5] = i2cRequestedFrame->isRemoteRequest;
         frameToSend[6] = i2cRequestedFrame->length;
