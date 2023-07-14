@@ -94,8 +94,8 @@ void setup()
 
     // I2C setup
     Wire.begin(EEPROM.read(REG_ADDR));
-    Wire.onReceive(handleI2CWrite);
-    Wire.onRequest(handleI2CRead);
+    Wire.onReceive(receiveFromI2C);
+    Wire.onRequest(sendToI2C);
 
     while (CAN.begin(canBaud) != CAN_OK)
     {
@@ -244,7 +244,7 @@ void loop()
     i2cDataLength = 0;
 }
 
-void handleI2CWrite(int howMany)
+void receiveFromI2C(int howMany)
 {
     while (Wire.available() > 0) i2cData[i2cDataLength++] = Wire.read();
     if (i2cDataLength > 0) i2cDataReceived = TRUE;
@@ -255,7 +255,7 @@ void handleI2CWrite(int howMany)
      break;\
 }\
 
-void handleI2CRead() {
+void sendToI2C() {
     switch (i2cReadRequest) {
 
     case REG_BAUD: {
