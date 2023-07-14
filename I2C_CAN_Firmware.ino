@@ -4,7 +4,7 @@
 #include <EEPROM.h>
 #include "I2C_CAN_dfs.h"
 
-#define IS_DEBUG
+// #define IS_DEBUG
 
 #define CAN_FRAME_SIZE 15
 
