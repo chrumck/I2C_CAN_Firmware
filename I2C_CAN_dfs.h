@@ -12,7 +12,7 @@ typedef struct {
   unsigned long canId;
   byte isExtended;
   byte isRemoteRequest;
-  byte length;
+  byte dataLength;
   byte data[CAN_DATA_SIZE];
   unsigned long timestamp;
   byte isSent;

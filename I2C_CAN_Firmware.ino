@@ -291,7 +291,7 @@ void sendToI2C() {
         Wire.write((i2cRequestedFrame->canId) & 0xff);
         Wire.write(i2cRequestedFrame->isExtended);
         Wire.write(i2cRequestedFrame->isRemoteRequest);
-        Wire.write(i2cRequestedFrame->length);
+        Wire.write(i2cRequestedFrame->dataLength);
         for (int i = 0; i < CAN_DATA_SIZE; i++) Wire.write(i2cRequestedFrame->data[i]);
 
         break;
@@ -318,7 +318,7 @@ void receiveCanFrame()
     if (canFramesCount == CAN_FRAMES_BUFFER_SIZE) removeOldFrames();
 
     CanFrame frame = { };
-    CAN.readMsgBuf(&frame.length, frame.data);
+    CAN.readMsgBuf(&frame.dataLength, frame.data);
     frame.canId = CAN.getCanId();
     frame.isExtended = CAN.isExtendedFrame();
     frame.isRemoteRequest = CAN.isRemoteRequest();
