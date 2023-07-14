@@ -23,7 +23,7 @@
 #define CAN_FRAMES_PRUNE_TIME 3000
 #endif
 
-#define REQUEST_REJECTED_RESPONSE 255
+#define REQUEST_REJECTED_RESPONSE 0x0
 
 #define SPI_CS_PIN 9            // CAN Bus Shield
 #define LED_PIN 3
@@ -190,7 +190,7 @@ void loop()
             i2cRequestedFrame = getFrame(i2cData[1] << 24 | i2cData[2] << 16 | i2cData[3] << 8 | i2cData[4]);
         }
         else {
-            i2cRequestedFrame = NULL;
+            i2cRequestedFrame = getFrame(NULL);
         }
 
         break;
@@ -263,7 +263,10 @@ void receiveFromI2C(int howMany)
 }\
 
 void sendToI2C() {
-    if (i2cReceiveRejected) {
+    if (i2cReceiveRejected || i2cReceivedLength != 0) {
+        Wire.write(REQUEST_REJECTED_RESPONSE);
+        Wire.write(REQUEST_REJECTED_RESPONSE);
+        Wire.write(REQUEST_REJECTED_RESPONSE);
         Wire.write(REQUEST_REJECTED_RESPONSE);
         return;
     }
@@ -473,5 +476,6 @@ CanFrame* getFrame(u32 frameId) {
     }
 #endif
 
+    if (oldestFrame != NULL) oldestFrame->isSent = TRUE;
     return oldestFrame;
 }
