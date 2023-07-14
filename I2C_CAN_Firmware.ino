@@ -23,8 +23,9 @@
 #define CAN_FRAMES_PRUNE_TIME 3000
 #endif
 
-#define REQUEST_REJECTED_RESPONSE 0x00000000
-#define NO_FRAMES_AVAILABLE_RESPONSE 0x00000001
+#define NO_FRAMES_AVAILABLE_RESPONSE 0x00000000
+#define RECEIVE_REJECTED_RESPONSE 0x00000001
+#define RESPONSE_NOT_READY_RESPONSE 0x00000002
 
 #define SPI_CS_PIN 9            // CAN Bus Shield
 #define LED_PIN 3
@@ -247,11 +248,19 @@ void receiveFromI2C(int howMany)
 }\
 
 void sendToI2C() {
-    if (i2cReceiveRejected || i2cReceivedLength != 0) {
-        Wire.write((REQUEST_REJECTED_RESPONSE >> 24) & 0xFF);
-        Wire.write((REQUEST_REJECTED_RESPONSE >> 16) & 0xFF);
-        Wire.write((REQUEST_REJECTED_RESPONSE >> 8) & 0xFF);
-        Wire.write((REQUEST_REJECTED_RESPONSE) & 0xFF);
+    if (i2cReceiveRejected) {
+        Wire.write((RECEIVE_REJECTED_RESPONSE >> 24) & 0xFF);
+        Wire.write((RECEIVE_REJECTED_RESPONSE >> 16) & 0xFF);
+        Wire.write((RECEIVE_REJECTED_RESPONSE >> 8) & 0xFF);
+        Wire.write((RECEIVE_REJECTED_RESPONSE) & 0xFF);
+        return;
+    }
+
+    if (i2cReceivedLength != 0) {
+        Wire.write((RESPONSE_NOT_READY_RESPONSE >> 24) & 0xFF);
+        Wire.write((RESPONSE_NOT_READY_RESPONSE >> 16) & 0xFF);
+        Wire.write((RESPONSE_NOT_READY_RESPONSE >> 8) & 0xFF);
+        Wire.write((RESPONSE_NOT_READY_RESPONSE) & 0xFF);
         return;
     }
 

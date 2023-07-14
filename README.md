@@ -31,7 +31,11 @@ The checksum byte was removed from frames [following this advice](<https://githu
 
 ## Rejected I<sup>2</sup>C Requests
 
-In order to give the module enough time to process I2C requests, there should be a short interval introduced between the I2C write command and the read command. If the two commands are sent with too short of an interval, the controller will respond with a 'rejected' message in the form of four bytes representing the value `0x00000000`.
+In order to give the module enough time to process I2C requests, there should be some delay introduced between I2C commands.
+
+If consecutive write commands are sent without sufficient delay, the module will respond to the rejected write command with four bytes representing the `RECEIVE_REJECTED_RESPONSE` message.
+
+If a read command is sent too early after a write command, the controller will respond with four bytes representing the `RESPONSE_NOT_READY_RESPONSE` message. The response can be retrieved if another read request is sent after sufficient delay.
 
 ---
 
@@ -65,7 +69,7 @@ If data is requested without any additional bytes passed, the code defaults back
 
 ### No Frames Available
 
-If the oldest frame, or the frame for the given id, is not available, the module will respond with four bytes representing the value `0x00000001`.
+If the oldest frame, or the frame for the given id, is not available, the module will respond with four bytes representing the `NO_FRAMES_AVAILABLE_RESPONSE` message.
 
 ---
 
