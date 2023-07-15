@@ -10,12 +10,13 @@
 
 #ifdef IS_DEBUG
 #define CAN_FRAMES_BUFFER_SIZE 4
+#define CAN_FRAMES_INDEX_SIZE 16    // has to be power of two for hashing to work
+
 #else
-#define CAN_FRAMES_BUFFER_SIZE 15
+#define CAN_FRAMES_BUFFER_SIZE 12
+#define CAN_FRAMES_INDEX_SIZE 32    // has to be power of two for hashing to work
 #endif
 
-#define CAN_FRAMES_INDEX_LOAD_FACTOR 3
-#define CAN_FRAMES_INDEX_SIZE (CAN_FRAMES_BUFFER_SIZE * CAN_FRAMES_INDEX_LOAD_FACTOR)
 
 #ifdef IS_DEBUG
 #define CAN_FRAMES_PRUNE_TIME 15000
@@ -39,6 +40,7 @@ MCP_CAN CAN(SPI_CS_PIN);
 
 CanFrame canFramesBuffer[CAN_FRAMES_BUFFER_SIZE] = { 0 };
 CanFrameIndexEntry canFramesIndex[CAN_FRAMES_INDEX_SIZE] = { 0 };
+u8 canFramesHashBase = CAN_FRAMES_INDEX_SIZE - 1;
 
 u8 canFramesCount = 0;
 
@@ -328,7 +330,7 @@ void receiveCanFrame()
 }
 
 #define getIndexPosition(_searchedCanId)\
-    u8 indexPosition = _searchedCanId % CAN_FRAMES_INDEX_SIZE;\
+    u8 indexPosition = _searchedCanId & canFramesHashBase;\
     while (canFramesIndex[indexPosition].canId != NULL && canFramesIndex[indexPosition].canId != _searchedCanId) {\
         indexPosition = (indexPosition + 1) % CAN_FRAMES_INDEX_SIZE;\
     }\
