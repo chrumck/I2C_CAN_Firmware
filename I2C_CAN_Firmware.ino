@@ -447,7 +447,7 @@ CanFrame* getFrame(u32 frameId) {
         if (frame->isSent) return NULL;
 
         frame->isSent = TRUE;
-        return;
+        return frame;
     }
 
     CanFrame* oldestFrame = NULL;
