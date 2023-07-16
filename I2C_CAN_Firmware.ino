@@ -283,14 +283,14 @@ void sendToI2C() {
             Wire.write((NO_FRAMES_AVAILABLE_RESPONSE >> 24) & 0xFF);
             Wire.write((NO_FRAMES_AVAILABLE_RESPONSE >> 16) & 0xFF);
             Wire.write((NO_FRAMES_AVAILABLE_RESPONSE >> 8) & 0xFF);
-            Wire.write((NO_FRAMES_AVAILABLE_RESPONSE) & 0xFF);
+            Wire.write(NO_FRAMES_AVAILABLE_RESPONSE & 0xFF);
             break;
         }
 
         Wire.write((i2cRequestedFrame->canId >> 24) & 0xff);
         Wire.write((i2cRequestedFrame->canId >> 16) & 0xff);
         Wire.write((i2cRequestedFrame->canId >> 8) & 0xff);
-        Wire.write((i2cRequestedFrame->canId) & 0xff);
+        Wire.write(i2cRequestedFrame->canId & 0xff);
         Wire.write(i2cRequestedFrame->isExtended);
         Wire.write(i2cRequestedFrame->isRemoteRequest);
         Wire.write(i2cRequestedFrame->dataLength);

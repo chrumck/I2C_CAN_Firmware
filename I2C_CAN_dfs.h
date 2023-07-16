@@ -9,12 +9,12 @@
 #define CAN_DATA_SIZE 8
 
 typedef struct {
-  unsigned long canId;
+  u32 canId;
   byte isExtended;
   byte isRemoteRequest;
   byte dataLength;
   byte data[CAN_DATA_SIZE];
-  unsigned long timestamp;
+  u32 timestamp;
   byte isSent;
 } CanFrame;
 
