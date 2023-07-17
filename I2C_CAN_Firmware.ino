@@ -24,7 +24,6 @@
 #define CAN_FRAMES_PRUNE_TIME 3000
 #endif
 
-#define NO_FRAMES_AVAILABLE_RESPONSE 0x00000000
 #define RECEIVE_REJECTED_RESPONSE 0x00000001
 #define RESPONSE_NOT_READY_RESPONSE 0x00000002
 
@@ -47,7 +46,7 @@ u8 canFramesCount = 0;
 volatile u8 i2cReceivedLength = 0;
 volatile u8 i2cReceiveRejected = FALSE;
 volatile u8 i2cReadRequest = NULL;
-volatile CanFrame* i2cRequestedFrame = NULL;
+u8 i2cFrameToSend[CAN_FRAME_SIZE];
 u8 i2cData[20];
 
 u8 getCheckSum(u8* data, int length)
@@ -173,13 +172,23 @@ void loop()
     case REG_RECV: {
         if (i2cReceivedLength != 1 && i2cReceivedLength != 5) break;
         i2cReadRequest = REG_RECV;
+        memset(&i2cFrameToSend, 0, CAN_FRAME_SIZE);
 
-        if (i2cReceivedLength == 5) {
-            i2cRequestedFrame = getFrame(i2cData[1] << 24 | i2cData[2] << 16 | i2cData[3] << 8 | i2cData[4]);
-        }
-        else {
-            i2cRequestedFrame = getFrame(NULL);
-        }
+        CanFrame* frame = NULL;
+        if (i2cReceivedLength == 5) frame = getFrame(i2cData[1] << 24 | i2cData[2] << 16 | i2cData[3] << 8 | i2cData[4]);
+        else frame = getFrame(NULL);
+
+        if (frame == NULL) break;
+
+        i2cFrameToSend[0] = (frame->canId >> 24) & 0xff;
+        i2cFrameToSend[1] = (frame->canId >> 16) & 0xff;
+        i2cFrameToSend[2] = (frame->canId >> 8) & 0xff;
+        i2cFrameToSend[3] = frame->canId & 0xff;
+        i2cFrameToSend[4] = frame->isExtended;
+        i2cFrameToSend[5] = frame->isRemoteRequest;
+        i2cFrameToSend[6] = frame->dataLength;
+        for (int i = 0; i < frame->dataLength; i++) i2cFrameToSend[7 + i] = frame->data[i];
+        i2cFrameToSend[15] = getCheckSum(i2cFrameToSend, 15);
 
         break;
     }
@@ -280,27 +289,7 @@ void sendToI2C() {
     }
 
     case REG_RECV: {
-        if (i2cRequestedFrame == NULL) {
-            Wire.write((NO_FRAMES_AVAILABLE_RESPONSE >> 24) & 0xFF);
-            Wire.write((NO_FRAMES_AVAILABLE_RESPONSE >> 16) & 0xFF);
-            Wire.write((NO_FRAMES_AVAILABLE_RESPONSE >> 8) & 0xFF);
-            Wire.write(NO_FRAMES_AVAILABLE_RESPONSE & 0xFF);
-            break;
-        }
-
-        u8 frameToSend[CAN_FRAME_SIZE] = { };
-        frameToSend[0] = (i2cRequestedFrame->canId >> 24) & 0xff;
-        frameToSend[1] = (i2cRequestedFrame->canId >> 16) & 0xff;
-        frameToSend[2] = (i2cRequestedFrame->canId >> 8) & 0xff;
-        frameToSend[3] = i2cRequestedFrame->canId & 0xff;
-        frameToSend[4] = i2cRequestedFrame->isExtended;
-        frameToSend[5] = i2cRequestedFrame->isRemoteRequest;
-        frameToSend[6] = i2cRequestedFrame->dataLength;
-        for (int i = 0; i < i2cRequestedFrame->dataLength; i++) frameToSend[7 + i] = i2cRequestedFrame->data[i];
-        frameToSend[15] = getCheckSum(frameToSend, 15);
-
-        for (int i = 0; i < CAN_FRAME_SIZE; i++) Wire.write(frameToSend[i]);
-
+        for (int i = 0; i < CAN_FRAME_SIZE; i++) Wire.write(i2cFrameToSend[i]);
         break;
     }
 
@@ -478,4 +467,4 @@ CanFrame* getFrame(u32 frameId) {
 
     if (oldestFrame != NULL) oldestFrame->isSent = TRUE;
     return oldestFrame;
-    }
+}
