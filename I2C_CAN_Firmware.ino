@@ -6,7 +6,7 @@
 
 // #define IS_DEBUG
 
-#define CAN_FRAME_SIZE 15
+#define CAN_FRAME_SIZE 16
 
 #ifdef IS_DEBUG
 #define CAN_FRAMES_BUFFER_SIZE 4
@@ -49,6 +49,21 @@ volatile u8 i2cReceiveRejected = FALSE;
 volatile u8 i2cReadRequest = NULL;
 volatile CanFrame* i2cRequestedFrame = NULL;
 u8 i2cData[20];
+
+u8 getCheckSum(u8* data, int length)
+{
+    u32 sum = 0;
+    for (int i = 0; i < length; i++) sum += data[i];
+
+    if (sum > 0xff)
+    {
+        sum = ~sum;
+        sum += 1;
+    }
+
+    sum = sum & 0xff;
+    return sum;
+}
 
 u32 getMaskOrFilterValue(u8 regAddress) {
     return EEPROM.read(regAddress + 1) << 24 |
@@ -148,6 +163,7 @@ void loop()
     case REG_SEND: {
         if (i2cReceivedLength != 17) break;
         if (i2cData[7] > 8) break;
+        if (getCheckSum(i2cData + 1, 15) != i2cData[16]) break;
 
         u32 frameId = i2cData[1] << 24 | i2cData[2] << 16 | i2cData[3] << 8 | i2cData[4];
         CAN.sendMsgBuf(frameId, i2cData[5], i2cData[7], &i2cData[8]);
@@ -272,14 +288,18 @@ void sendToI2C() {
             break;
         }
 
-        Wire.write((i2cRequestedFrame->canId >> 24) & 0xff);
-        Wire.write((i2cRequestedFrame->canId >> 16) & 0xff);
-        Wire.write((i2cRequestedFrame->canId >> 8) & 0xff);
-        Wire.write(i2cRequestedFrame->canId & 0xff);
-        Wire.write(i2cRequestedFrame->isExtended);
-        Wire.write(i2cRequestedFrame->isRemoteRequest);
-        Wire.write(i2cRequestedFrame->dataLength);
-        for (int i = 0; i < CAN_DATA_SIZE; i++) Wire.write(i2cRequestedFrame->data[i]);
+        u8 frameToSend[CAN_FRAME_SIZE] = { };
+        frameToSend[0] = (i2cRequestedFrame->canId >> 24) & 0xff;
+        frameToSend[1] = (i2cRequestedFrame->canId >> 16) & 0xff;
+        frameToSend[2] = (i2cRequestedFrame->canId >> 8) & 0xff;
+        frameToSend[3] = i2cRequestedFrame->canId & 0xff;
+        frameToSend[4] = i2cRequestedFrame->isExtended;
+        frameToSend[5] = i2cRequestedFrame->isRemoteRequest;
+        frameToSend[6] = i2cRequestedFrame->dataLength;
+        for (int i = 0; i < i2cRequestedFrame->dataLength; i++) frameToSend[7 + i] = i2cRequestedFrame->data[i];
+        frameToSend[15] = getCheckSum(frameToSend, 15);
+
+        for (int i = 0; i < CAN_FRAME_SIZE; i++) Wire.write(frameToSend[i]);
 
         break;
     }
