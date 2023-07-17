@@ -283,7 +283,7 @@ void sendToI2C() {
     }
 
     case REG_RECV: {
-        for (int i = 0; i < CAN_FRAME_SIZE; i++) Wire.write(i2cFrameToSend[i]);
+        Wire.write(&i2cFrameToSend[0], CAN_FRAME_SIZE);
         break;
     }
 
@@ -462,3 +462,4 @@ CanFrame* getFrame(u32 frameId) {
     if (oldestFrame != NULL) oldestFrame->isSent = TRUE;
     return oldestFrame;
 }
+
