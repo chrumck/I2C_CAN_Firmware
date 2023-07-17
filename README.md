@@ -23,12 +23,6 @@ This project requires two libraries to be installed prior to flashing the contro
 
 ---
 
-## Checksum byte removed
-
-The checksum byte was removed from frames [following this advice](<https://github.com/Koepel/How-to-use-the-Arduino-Wire-library/wiki/Adding-a-checksum-(is-almost-useless)>)
-
----
-
 ## Rejected I<sup>2</sup>C Requests
 
 In order to give the module enough time to process I2C requests, there should be some delay introduced between I2C commands.
