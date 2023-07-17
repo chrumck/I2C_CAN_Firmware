@@ -50,9 +50,6 @@ volatile u8 i2cReadRequest = NULL;
 volatile CanFrame* i2cRequestedFrame = NULL;
 u8 i2cData[20];
 
-int blinkCount = 0;
-u32 lastBlinkTime = millis();
-
 u32 getMaskOrFilterValue(u8 regAddress) {
     return EEPROM.read(regAddress + 1) << 24 |
         EEPROM.read(regAddress + 2) << 16 |
@@ -104,19 +101,11 @@ void setup()
     CAN.init_Filt(4, EEPROM.read(REG_FILT4), getMaskOrFilterValue(REG_FILT4));
     CAN.init_Filt(5, EEPROM.read(REG_FILT5), getMaskOrFilterValue(REG_FILT5));
 #endif
+
     LEDON();
 
     WD_SET(WD_RST, WDTO_1S);
 }
-
-#define blinkLed()\
-    if (millis() - lastBlinkTime >= 100) {\
-        lastBlinkTime = millis();\
-        if (blinkCount > 0) {\
-            digitalWrite(LED_PIN, blinkCount % 2);\
-            blinkCount--;\
-        }\
-    }\
 
 #define processMaskOrFilterRequest(_register)\
     if (i2cReceivedLength == 1) i2cReadRequest = _register;\
@@ -128,13 +117,9 @@ void loop()
 {
     receiveCanFrame();
 
-    blinkLed();
-
     WDR();
 
     if (i2cReceivedLength == 0) return;
-
-    if (blinkCount == 0) blinkCount = 2;
 
     switch (i2cData[0]) {
 
@@ -473,4 +458,4 @@ CanFrame* getFrame(u32 frameId) {
 
     if (oldestFrame != NULL) oldestFrame->isSent = TRUE;
     return oldestFrame;
-}
+    }
