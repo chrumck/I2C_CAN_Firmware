@@ -53,13 +53,7 @@ u8 getCheckSum(u8* data, int length)
 {
     u32 sum = 0;
     for (int i = 0; i < length; i++) sum += data[i];
-
-    if (sum > 0xff)
-    {
-        sum = ~sum;
-        sum += 1;
-    }
-
+    if (sum > 0xff) sum = (~sum) + 1;
     sum = sum & 0xff;
     return sum;
 }
@@ -467,4 +461,4 @@ CanFrame* getFrame(u32 frameId) {
 
     if (oldestFrame != NULL) oldestFrame->isSent = TRUE;
     return oldestFrame;
-}
+    }
