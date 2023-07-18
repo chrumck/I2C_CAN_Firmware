@@ -166,12 +166,12 @@ void loop()
 
     case REG_RECV: {
         if (i2cReceivedLength != 1 && i2cReceivedLength != 5) break;
+
         i2cReadRequest = REG_RECV;
         memset(&i2cFrameToSend, 0, CAN_FRAME_SIZE);
 
-        CanFrame* frame = NULL;
-        if (i2cReceivedLength == 5) frame = getFrame(i2cData[1] << 24 | i2cData[2] << 16 | i2cData[3] << 8 | i2cData[4]);
-        else frame = getFrame(NULL);
+        u32 frameId = i2cReceivedLength == 5 ? i2cData[1] << 24 | i2cData[2] << 16 | i2cData[3] << 8 | i2cData[4] : NULL;
+        CanFrame* frame = getFrame(frameId);
 
         if (frame == NULL) break;
 
