@@ -127,10 +127,8 @@ void loop()
 
     WDR();
 
-    if (i2cReceivedLength < 1) {
-        i2cReceivedLength = 0;
-        return;
-    }
+    if (i2cReceivedLength < 0) i2cReceivedLength = 0;
+    if (i2cReceivedLength == 0) return;
 
     switch (i2cData[0]) {
 
