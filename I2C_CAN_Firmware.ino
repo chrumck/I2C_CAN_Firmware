@@ -24,6 +24,7 @@
 #define CAN_FRAMES_PRUNE_TIME 3000
 #endif
 
+#define I2C_DATA_LENGTH 20
 #define RECEIVE_REJECTED_RESPONSE 0x00000001
 #define RESPONSE_NOT_READY_RESPONSE 0x00000002
 
@@ -47,7 +48,7 @@ volatile u8 i2cReceivedLength = 0;
 volatile u8 i2cReceiveRejected = FALSE;
 volatile u8 i2cReadRequest = NULL;
 u8 i2cFrameToSend[CAN_FRAME_SIZE];
-u8 i2cData[20];
+u8 i2cData[I2C_DATA_LENGTH];
 
 u8 getCheckSum(u8* data, int length)
 {
@@ -127,8 +128,7 @@ void loop()
 
     WDR();
 
-    if (i2cReceivedLength < 0) i2cReceivedLength = 0;
-    if (i2cReceivedLength == 0) return;
+    if (i2cReceivedLength < 1) return;
 
     switch (i2cData[0]) {
 
@@ -240,13 +240,15 @@ void loop()
 
 void receiveFromI2C(int howMany)
 {
+    if (i2cReceivedLength < 0 || i2cReceivedLength > I2C_DATA_LENGTH) i2cReceivedLength = 0;
+
     if (i2cReceivedLength != 0) {
         i2cReceiveRejected = TRUE;
         return;
     }
 
     i2cReceiveRejected = FALSE;
-    while (Wire.available() > 0) i2cData[i2cReceivedLength++] = Wire.read();
+    while (Wire.available() > 0 && i2cReceivedLength < I2C_DATA_LENGTH) i2cData[i2cReceivedLength++] = Wire.read();
 }
 
 #define sendMaskOrFilter(_register) {\
