@@ -5,16 +5,11 @@
 #include "I2C_CAN_dfs.h"
 
 // #define IS_DEBUG
-#define IS_I2C_DEBUG
 
-#if defined(IS_DEBUG)
+#ifdef IS_DEBUG
 #define CAN_FRAMES_BUFFER_SIZE 4
 #define CAN_FRAMES_INDEX_SIZE 16    // has to be power of two for hashing to work
 #define CAN_FRAMES_PRUNE_TIME 15000
-#elif defined(IS_I2C_DEBUG)
-#define CAN_FRAMES_BUFFER_SIZE 10
-#define CAN_FRAMES_INDEX_SIZE 32    // has to be power of two for hashing to work
-#define CAN_FRAMES_PRUNE_TIME 3000
 #else
 #define CAN_FRAMES_BUFFER_SIZE 12
 #define CAN_FRAMES_INDEX_SIZE 32    // has to be power of two for hashing to work
@@ -128,13 +123,6 @@ void loop()
 
     if (i2cReceivedLength < 1 || i2cReceivedLength > I2C_DATA_LENGTH) return;
 
-#ifdef IS_I2C_DEBUG
-    Serial.print("processing i2c request:0x");
-    Serial.print(i2cData[0], 16);
-    Serial.print(" ,length:");
-    Serial.println(i2cReceivedLength);
-#endif
-
     switch (i2cData[0]) {
 
     case REG_ADDR: {
@@ -240,10 +228,6 @@ void loop()
         break;
     }
 
-#ifdef IS_I2C_DEBUG
-    Serial.print("done processing i2c request:0x");
-    Serial.println(i2cData[0], 16);
-#endif
     i2cReceivedLength = 0;
 }
 
@@ -251,24 +235,12 @@ void receiveFromI2C(int howMany)
 {
     if (i2cReceivedLength < 0 || i2cReceivedLength > I2C_DATA_LENGTH) i2cReceivedLength = 0;
 
-    if (i2cReceivedLength != 0) {
-#ifdef IS_I2C_DEBUG
-        Serial.print("rejecting request, i2cReceivedLength=");
-        Serial.println(i2cReceivedLength);
-#endif
-        i2cReceiveRejected = TRUE;
-        return;
+    i2cReceiveRejected = i2cReceivedLength != 0 ? TRUE : FALSE;
+
+    while (Wire.available() > 0) {
+        if (!i2cReceiveRejected && i2cReceivedLength < I2C_DATA_LENGTH) i2cData[i2cReceivedLength++] = Wire.read();
+        else Wire.read();
     }
-
-    i2cReceiveRejected = FALSE;
-    while (Wire.available() > 0 && i2cReceivedLength < I2C_DATA_LENGTH) i2cData[i2cReceivedLength++] = Wire.read();
-
-#ifdef IS_I2C_DEBUG
-    Serial.print("received i2c request:0x");
-    Serial.print(i2cData[0], 16);
-    Serial.print(" ,length:");
-    Serial.println(i2cReceivedLength);
-#endif
 }
 
 #define sendMaskOrFilter(_register) {\
@@ -277,10 +249,6 @@ void receiveFromI2C(int howMany)
 }\
 
 void sendToI2C() {
-#ifdef IS_I2C_DEBUG
-    Serial.println("sending data to i2c");
-#endif
-
     if (i2cReceiveRejected) {
         Wire.write((RECEIVE_REJECTED_RESPONSE >> 24) & 0xFF);
         Wire.write((RECEIVE_REJECTED_RESPONSE >> 16) & 0xFF);
@@ -326,10 +294,6 @@ void sendToI2C() {
     default:
         break;
     }
-
-#ifdef IS_I2C_DEBUG
-    Serial.println("sending data to i2c - done");
-#endif
 }
 
 void receiveCanFrame()
