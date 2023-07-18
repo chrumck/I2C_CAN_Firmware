@@ -127,7 +127,7 @@ void loop()
 
     WDR();
 
-    if (i2cReceivedLength < 1>) {
+    if (i2cReceivedLength < 1) {
         i2cReceivedLength = 0;
         return;
     }
