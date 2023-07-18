@@ -7,10 +7,14 @@
 // #define IS_DEBUG
 #define IS_I2C_DEBUG
 
-#ifdef IS_DEBUG
+#if defined(IS_DEBUG)
 #define CAN_FRAMES_BUFFER_SIZE 4
 #define CAN_FRAMES_INDEX_SIZE 16    // has to be power of two for hashing to work
 #define CAN_FRAMES_PRUNE_TIME 15000
+#elif defined(IS_I2C_DEBUG)
+#define CAN_FRAMES_BUFFER_SIZE 10
+#define CAN_FRAMES_INDEX_SIZE 32    // has to be power of two for hashing to work
+#define CAN_FRAMES_PRUNE_TIME 3000
 #else
 #define CAN_FRAMES_BUFFER_SIZE 12
 #define CAN_FRAMES_INDEX_SIZE 32    // has to be power of two for hashing to work
@@ -483,7 +487,7 @@ CanFrame* getFrame(u32 frameId) {
     }
     else {
         Serial.println("all frames already sent");
-}
+    }
 #endif
 
     if (oldestFrame != NULL) oldestFrame->isSent = TRUE;
