@@ -18,8 +18,8 @@
 
 #define CAN_FRAME_SIZE 16
 #define I2C_DATA_LENGTH 20
-#define RECEIVE_REJECTED_RESPONSE 0x00000001
-#define RESPONSE_NOT_READY_RESPONSE 0x00000002
+#define RECEIVE_REJECTED_RESPONSE 0x01010101
+#define RESPONSE_NOT_READY_RESPONSE 0x01010102
 
 #define SPI_CS_PIN 9            // CAN Bus Shield
 #define LED_PIN 3
@@ -111,7 +111,8 @@ void setup()
 
 #define processMaskOrFilterRequest(_register)\
     if (i2cReceivedLength == 1) i2cReadRequest = _register;\
-    if (i2cReceivedLength != 6) break;\
+    if (i2cReceivedLength != 7) break;\
+    if (getCheckSum(i2cData + 1, 5) != i2cData[6]) break;\
     for (int i = 0; i < 5; i++) EEPROM.write(_register + i, i2cData[1 + i]);\
     u32 newMaskOrFilter = i2cData[2] << 24 | i2cData[3] << 16 | i2cData[4] << 8 | i2cData[5];\
 
@@ -244,8 +245,11 @@ void receiveFromI2C(int howMany)
 }
 
 #define sendMaskOrFilter(_register) {\
-     for (int i = 0; i < 5; i++) Wire.write(EEPROM.read(_register + i));\
-     break;\
+    u8 maskOrFilterToSend[6];\
+    for (int i = 0; i < 5; i++) maskOrFilterToSend[i] = EEPROM.read(_register + i);\
+    maskOrFilterToSend[5] = getCheckSum(maskOrFilterToSend, 5);\
+    for (int i = 0; i < 6; i++) Wire.write(maskOrFilterToSend[i]);\
+    break;\
 }\
 
 void sendToI2C() {
