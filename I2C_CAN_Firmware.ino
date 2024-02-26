@@ -81,12 +81,14 @@ void setup()
         if (error != MCP2515::ERROR_OK) {
             Serial.print("MCP2515 reset failed with error:");
             Serial.println(error);
+            continue;
         }
 
         error = mcp2515.setBitrate(canBaud, MCP_8MHZ);
         if (error != MCP2515::ERROR_OK) {
             Serial.print("MCP2515 setBitrate failed with error:");
             Serial.println(error);
+            continue;
         }
 
         error = mcp2515.setNormalMode();
