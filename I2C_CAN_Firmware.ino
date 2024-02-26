@@ -1,5 +1,4 @@
 #include <avr/wdt.h>
-#include <SPI.h>
 #include <mcp2515.h>
 #include <SBWire.h>
 #include <EEPROM.h>
