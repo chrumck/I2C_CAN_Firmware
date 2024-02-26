@@ -1,5 +1,6 @@
 {
     "sketch": "I2C_CAN_Firmware.ino",
-    "board": "Longan Card:avr:atmega168bc",
-    "port": "COM5"
+    "board": "SparkFun:avr:promicro",
+    "port": "COM5",
+    "configuration": "cpu=16MHzatmega32U4"
 }
