@@ -248,7 +248,7 @@ void receiveFromI2C(int howMany)
     u8 maskOrFilterToSend[6];\
     for (int i = 0; i < 5; i++) maskOrFilterToSend[i] = EEPROM.read(_register + i);\
     maskOrFilterToSend[5] = getCheckSum(maskOrFilterToSend, 5);\
-    for (int i = 0; i < 6; i++) Wire.write(maskOrFilterToSend[i]);\
+    Wire.write(&maskOrFilterToSend[0], 6);\
     break;\
 }\
 
@@ -411,16 +411,13 @@ CanFrame* getFrame(u32 frameId) {
         return NULL;
     }
 
-
     if (frameId != NULL) {
         getIndexPosition(frameId);
         if (canFramesIndex[indexPosition].canId == NULL) {
-
 #ifdef IS_DEBUG
             Serial.print("frame not available:0x");
             Serial.println(frameId, 16);
 #endif
-
             return NULL;
         }
 
