@@ -1,13 +1,13 @@
 #ifndef __I2C_CAN_DFS_H__
 #define __I2C_CAN_DFS_H__
 
-#include <mcp2515.h>
+// #include <mcp2515.h>
 
 #define FALSE 0
 #define TRUE 1
 #define ULONG_MAX 0xffffffff
 
-#define CAN_DATA_SIZE CAN_MAX_DLEN
+#define CAN_DATA_SIZE 8 //CAN_MAX_DLEN
 #define CAN_FRAME_SIZE 14
 
 #define CAN_FRAME_BIT_ID_0 0
