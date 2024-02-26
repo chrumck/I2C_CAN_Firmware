@@ -1,14 +1,16 @@
-# Firmware for Longan Labs [I2C CAN Bus Module](https://www.longan-labs.cc/1030017.html) - [Knurdash](https://github.com/chrumck/KnurDash) Fork
+# Firmware for I2C CAN BUS Controller - Part of the [Knurdash](https://github.com/chrumck/KnurDash) Project
 
 ## Description
 
-This firmware was forked from [SjoerdQ's fork of original firmware from Longan-Labs](https://github.com/SjoerdQ/I2C_CAN_Firmware) and heavily modified to serve frames from a dictionary instead of a FIFO type buffer.
+This firmware was initially forked from [SjoerdQ's fork of original firmware from Longan-Labs](https://github.com/SjoerdQ/I2C_CAN_Firmware) and heavily modified to serve frames from a dictionary instead of a FIFO type buffer.
+
+Additionally, this version modifies the code to use Arduino Pro Micro instead of Longan Labs [I2C CAN Bus Module](https://www.longan-labs.cc/1030017.html) .
 
 The dictionary is a custom implementation of a [hash table with linear probing](https://en.wikipedia.org/wiki/Linear_probing).
 
 The dictionary can hold up to `CAN_FRAMES_BUFFER_SIZE` frames with unique frame ids. If a new frame arrives with the id already stored in the dictionary, the old frame is replaced with the new one. If the dictionary is full and a frame arrives with an id not in the dictionary, the frame is dropped.
 
-Frames which are not retrieved through I2C for a while are periodically removed from the dictionary, giving a chance to frames ids which were not in the dictionary to take their place.
+If the dictionary if full, frames which are not retrieved through I2C for a while are periodically removed from the dictionary, giving a chance to frames ids which were not in the dictionary to take their place.
 
 The firmware has been developed as part of the [KnurDash](https://github.com/chrumck/KnurDash) project.
 
@@ -18,7 +20,7 @@ The firmware has been developed as part of the [KnurDash](https://github.com/chr
 
 This project requires two libraries to be installed prior to flashing the controller:
 
-- **[Longan Labs CAN BUS MCP2515 Library](https://github.com/Longan-Labs/Aruino_CAN_BUS_MCP2515)** - Driver for the MPC2515 CAN Bus transceiver.
+- **[Arduino MCP2515 CAN interface library by autowp](https://github.com/autowp/arduino-mcp2515)**
 - **[SBWire](https://github.com/freespace/SBWire)** - Replacement for the default Arduino Wire (i<sup>2</sup>c) library with basic timeouts to fix the board from occasionally not correctly responding to messages.
 
 ---
@@ -35,7 +37,7 @@ If a read command is sent too early after a write command, the controller will r
 
 ## I<sup>2</sup>C Registers
 
-The device default I<sup>2</sup>C slave address is 0x25 but can be changed by writing to address 1. Note that the new address is stored inside the internal EEPROM of the chip, and therefore changes in the bus address will remain after power loss.
+The device default I<sup>2</sup>C slave address is 0x25 but can be changed by writing to to a register. Note that the new address is stored inside the internal EEPROM of the chip, and therefore changes in the bus address will remain after power loss.
 
 The following table contains the various registers that are available on the i2c interface of the CAN Module.
 
@@ -67,25 +69,21 @@ If the oldest frame, or the frame for the given id, is not available, the module
 
 ---
 
-## 0x03 - CAN Baud Rates
+## 0x03 - Available CAN Baud Rates
 
-| Value  | CAN Baudrate (kb/s) |
-| ------ | ------------------- |
-| 1      | 5                   |
-| 2      | 10                  |
-| 3      | 20                  |
-| 4      | 25                  |
-| 5      | 31.2                |
-| 6      | 33                  |
-| 7      | 40                  |
-| 8      | 50                  |
-| 9      | 80                  |
-| 10     | 83.3                |
-| 11     | 95                  |
-| 12     | 100                 |
-| 13     | 125                 |
-| 14     | 200                 |
-| 15     | 250                 |
-| **16** | **500** (default)   |
-| 17     | 666                 |
-| 18     | 1000                |
+- CAN_5KBPS,
+- CAN_10KBPS,
+- CAN_20KBPS,
+- CAN_31K25BPS,
+- CAN_33KBPS,
+- CAN_40KBPS,
+- CAN_50KBPS,
+- CAN_80KBPS,
+- CAN_83K3BPS,
+- CAN_95KBPS,
+- CAN_100KBPS,
+- CAN_125KBPS,
+- CAN_200KBPS,
+- CAN_250KBPS,
+- CAN_500KBPS,
+- CAN_1000KBPS
