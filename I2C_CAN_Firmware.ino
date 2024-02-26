@@ -17,7 +17,7 @@
 #endif
 
 #define SERIAL_BAUD_RATE 115200
-#define MCP2515_SPI_FREQUENCY 8000
+#define MCP2515_SPI_FREQUENCY 8E6
 #define MCP2515_CS_PIN 10
 
 CanFrame canFramesBuffer[CAN_FRAMES_BUFFER_SIZE] = { 0 };
