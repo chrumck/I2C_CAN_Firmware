@@ -106,8 +106,6 @@ void setup()
     mcp2515.setFilter(MCP2515::RXF3, EEPROM.read(REG_FILT3), getMaskOrFilterValue(REG_FILT3));
     mcp2515.setFilter(MCP2515::RXF4, EEPROM.read(REG_FILT4), getMaskOrFilterValue(REG_FILT4));
     mcp2515.setFilter(MCP2515::RXF5, EEPROM.read(REG_FILT5), getMaskOrFilterValue(REG_FILT5));
-
-    wdt_enable(WDTO_1S);
 #endif
 }
 
@@ -120,10 +118,6 @@ void setup()
 
 void loop()
 {
-#ifndef IS_DEBUG
-    wdt_reset();
-#endif
-
     receiveCanFrame();
 
     if (i2cReceivedLength < 1 || i2cReceivedLength > I2C_DATA_LENGTH) return;
