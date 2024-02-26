@@ -1,4 +1,4 @@
-#include <avr/wdt.h>
+#include <SPI.h>
 #include <mcp2515.h>
 #include <SBWire.h>
 #include <EEPROM.h>
@@ -17,7 +17,7 @@
 #endif
 
 #define SERIAL_BAUD_RATE 115200
-#define MCP2515_SPI_FREQUENCY 8E6
+#define MCP2515_SPI_FREQUENCY 8000
 #define MCP2515_CS_PIN 10
 
 CanFrame canFramesBuffer[CAN_FRAMES_BUFFER_SIZE] = { 0 };
@@ -48,7 +48,7 @@ u32 getMaskOrFilterValue(u8 regAddress) {
         EEPROM.read(regAddress + 4);
 }
 
-MCP2515 mcp2515(MCP2515_CS_PIN, MCP2515_SPI_FREQUENCY);
+MCP2515 mcp2515(MCP2515_CS_PIN, MCP2515_SPI_FREQUENCY, &SPI);
 
 void setup()
 {
@@ -71,6 +71,8 @@ void setup()
 
     int eepromCanBaud = EEPROM.read(REG_CAN_BAUD_RATE);
     CAN_SPEED canBaud = (eepromCanBaud >= CAN_5KBPS && eepromCanBaud <= CAN_1000KBPS) ? (enum CAN_SPEED)eepromCanBaud : CAN_500KBPS;
+
+    SPI.begin();
 
     MCP2515::ERROR error = MCP2515::ERROR_OK;
     while (error != MCP2515::ERROR_OK)
