@@ -5,7 +5,7 @@
 #include <EEPROM.h>
 #include "I2C_CAN_dfs.h"
 
-// #define IS_DEBUG
+// #define IS_DEBUG TRUE
 
 #ifdef IS_DEBUG
 #define CAN_FRAMES_BUFFER_SIZE 4
@@ -17,7 +17,8 @@
 #define CAN_FRAMES_PRUNE_TIME 5000
 #endif
 
-#define CS_PIN 10
+#define MCP2515_CS_PIN 10
+#define MCP2515_SPI_FREQUENCY 8E6
 #define SERIAL_BAUD_RATE 115200
 
 CanFrame canFramesBuffer[CAN_FRAMES_BUFFER_SIZE] = { 0 };
@@ -48,7 +49,7 @@ u32 getMaskOrFilterValue(u8 regAddress) {
         EEPROM.read(regAddress + 4);
 }
 
-MCP2515 mcp2515(CS_PIN);
+MCP2515 mcp2515(MCP2515_CS_PIN, MCP2515_SPI_FREQUENCY);
 
 void setup()
 {
@@ -63,11 +64,6 @@ void setup()
         EEPROM.write(REG_I2C_ADDRESS_SET, REG_I2C_ADDRESS_SET_VALUE);
         EEPROM.write(REG_I2C_ADDRESS, DEFAULT_I2C_ADDRESS);
     }
-
-    // I2C setup
-    Wire.begin(EEPROM.read(REG_I2C_ADDRESS));
-    Wire.onReceive(receiveFromI2C);
-    Wire.onRequest(sendToI2C);
 
     int eepromCanBaud = EEPROM.read(REG_CAN_BAUD_RATE);
     CAN_SPEED canBaud = (eepromCanBaud >= CAN_5KBPS && eepromCanBaud <= CAN_1000KBPS) ? (enum CAN_SPEED)eepromCanBaud : CAN_500KBPS;
@@ -94,7 +90,8 @@ void setup()
         }
     }
 
-    Serial.println("MCP2515 setup successful.");
+    Serial.print("MCP2515 setup successful. Baud rate set:");
+    Serial.println(canBaud);
 
 #ifndef IS_DEBUG
     mcp2515.setFilterMask(MCP2515::MASK0, EEPROM.read(REG_MASK0), getMaskOrFilterValue(REG_MASK0));
@@ -322,12 +319,7 @@ void receiveCanFrame()
     struct can_frame received = { };
     MCP2515::ERROR readResult = mcp2515.readMessage(&received);
 
-    if (readResult == MCP2515::ERROR_NOMSG) {
-#ifdef IS_DEBUG
-        Serial.println("No message received");
-#endif
-        return;
-    }
+    if (readResult == MCP2515::ERROR_NOMSG) { return; }
 
     if (readResult != MCP2515::ERROR_OK) {
 #ifdef IS_DEBUG
