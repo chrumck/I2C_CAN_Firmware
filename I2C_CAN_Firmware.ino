@@ -54,6 +54,10 @@ void setup()
 {
     Serial.begin(SERIAL_BAUD_RATE);
 
+#ifdef IS_DEBUG
+    while (!Serial) {}
+#endif
+
     if (EEPROM.read(REG_I2C_ADDRESS_SET) != REG_I2C_ADDRESS_SET_VALUE)
     {
         EEPROM.write(REG_I2C_ADDRESS_SET, REG_I2C_ADDRESS_SET_VALUE);
@@ -68,9 +72,29 @@ void setup()
     int eepromCanBaud = EEPROM.read(REG_CAN_BAUD_RATE);
     CAN_SPEED canBaud = (eepromCanBaud >= CAN_5KBPS && eepromCanBaud <= CAN_1000KBPS) ? (enum CAN_SPEED)eepromCanBaud : CAN_500KBPS;
 
-    mcp2515.reset();
-    mcp2515.setBitrate(canBaud, MCP_16MHZ);
-    mcp2515.setNormalMode();
+    MCP2515::ERROR error = MCP2515::ERROR_OK;
+    while (error != MCP2515::ERROR_OK)
+    {
+        error = mcp2515.reset();
+        if (error != MCP2515::ERROR_OK) {
+            Serial.print("MCP2515 reset failed with error:");
+            Serial.println(error);
+        }
+
+        error = mcp2515.setBitrate(canBaud, MCP_8MHZ);
+        if (error != MCP2515::ERROR_OK) {
+            Serial.print("MCP2515 setBitrate failed with error:");
+            Serial.println(error);
+        }
+
+        error = mcp2515.setNormalMode();
+        if (error != MCP2515::ERROR_OK) {
+            Serial.print("MCP2515 setNormalMode failed with error:");
+            Serial.println(error);
+        }
+    }
+
+    Serial.println("MCP2515 setup successful.");
 
 #ifndef IS_DEBUG
     mcp2515.setFilterMask(MCP2515::MASK0, EEPROM.read(REG_MASK0), getMaskOrFilterValue(REG_MASK0));
@@ -84,7 +108,6 @@ void setup()
 
     wdt_enable(WDTO_1S);
 #endif
-
 }
 
 #define processMaskOrFilterRequest(_register)\
@@ -96,7 +119,9 @@ void setup()
 
 void loop()
 {
+#ifndef IS_DEBUG
     wdt_reset();
+#endif
 
     receiveCanFrame();
 
@@ -123,8 +148,8 @@ void loop()
 
         CAN_SPEED canBaud = (enum CAN_SPEED)i2cData[1];
         mcp2515.reset();
-        mcp2515.setBitrate(canBaud, MCP_16MHZ);
-        mcp2515.setListenOnlyMode();
+        mcp2515.setBitrate(canBaud, MCP_8MHZ);
+        mcp2515.setNormalMode();
 
         EEPROM.write(REG_CAN_BAUD_RATE, i2cData[1]);
         break;
@@ -297,7 +322,12 @@ void receiveCanFrame()
     struct can_frame received = { };
     MCP2515::ERROR readResult = mcp2515.readMessage(&received);
 
-    if (readResult == MCP2515::ERROR_NOMSG) return;
+    if (readResult == MCP2515::ERROR_NOMSG) {
+#ifdef IS_DEBUG
+        Serial.println("No message received");
+#endif
+        return;
+    }
 
     if (readResult != MCP2515::ERROR_OK) {
 #ifdef IS_DEBUG
