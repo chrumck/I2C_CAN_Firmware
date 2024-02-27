@@ -81,9 +81,11 @@ void setup()
 
     SPI.begin();
 
-    MCP2515::ERROR error;
+    MCP2515::ERROR error = MCP2515::ERROR_OK;
     do
     {
+        if (error != MCP2515::ERROR_OK) { delay(1000); }
+
         error = mcp2515.reset();
         if (error != MCP2515::ERROR_OK) {
             Serial.print("MCP2515 reset failed with error:");
@@ -91,7 +93,7 @@ void setup()
             continue;
         }
 
-        error = mcp2515.setBitrate(canBaud, MCP_8MHZ);
+        error = mcp2515.setBitrate(canBaud, MCP_16MHZ);
         if (error != MCP2515::ERROR_OK) {
             Serial.print("MCP2515 setBitrate failed with error:");
             Serial.println(error);
