@@ -1,6 +1,6 @@
 {
   "sketch": "I2C_CAN_Firmware.ino",
   "board": "SparkFun:avr:promicro",
-  "port": "COM7",
+  "port": "COM11",
   "configuration": "cpu=16MHzatmega32U4"
 }

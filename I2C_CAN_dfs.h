@@ -1,29 +1,31 @@
 #ifndef __I2C_CAN_DFS_H__
 #define __I2C_CAN_DFS_H__
 
-// #include <mcp2515.h>
+#include <mcp2515.h>
 
 #define FALSE 0
 #define TRUE 1
 #define ULONG_MAX 0xffffffff
 
-#define CAN_DATA_SIZE 8 //CAN_MAX_DLEN
-#define CAN_FRAME_SIZE 14
+#define CAN_DATA_SIZE CAN_MAX_DLEN
+#define CAN_FRAME_SIZE 16
 
 #define CAN_FRAME_BIT_ID_0 0
 #define CAN_FRAME_BIT_ID_1 1
 #define CAN_FRAME_BIT_ID_2 2
 #define CAN_FRAME_BIT_ID_3 3
-#define CAN_FRAME_BIT_DATA_LENGTH 4
-#define CAN_FRAME_BIT_DATA_0 5
-#define CAN_FRAME_BIT_DATA_1 6
-#define CAN_FRAME_BIT_DATA_2 7
-#define CAN_FRAME_BIT_DATA_3 8
-#define CAN_FRAME_BIT_DATA_4 9
-#define CAN_FRAME_BIT_DATA_5 10
-#define CAN_FRAME_BIT_DATA_6 11
-#define CAN_FRAME_BIT_DATA_7 12
-#define CAN_FRAME_BIT_CHECKSUM 13
+#define CAN_FRAME_BIT_IS_EXT 4
+#define CAN_FRAME_BIT_IS_RTR 5
+#define CAN_FRAME_BIT_DATA_LENGTH 6
+#define CAN_FRAME_BIT_DATA_0 7
+#define CAN_FRAME_BIT_DATA_1 8
+#define CAN_FRAME_BIT_DATA_2 9
+#define CAN_FRAME_BIT_DATA_3 10
+#define CAN_FRAME_BIT_DATA_4 11
+#define CAN_FRAME_BIT_DATA_5 12
+#define CAN_FRAME_BIT_DATA_6 13
+#define CAN_FRAME_BIT_DATA_7 14
+#define CAN_FRAME_BIT_CHECKSUM 15
 
 #define I2C_DATA_LENGTH (CAN_FRAME_SIZE + 1)
 #define RECEIVE_REJECTED_RESPONSE 0x01010101
@@ -31,6 +33,8 @@
 
 typedef struct {
   u32 canId;
+  byte isExtended;
+  byte isRemoteRequest;
   byte dataLength;
   byte data[CAN_DATA_SIZE];
   u32 timestamp;

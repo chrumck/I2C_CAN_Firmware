@@ -145,18 +145,19 @@ void loop()
         if (i2cReceivedLength != 2) break;
         if (i2cData[1] < CAN_5KBPS || i2cData[1] > CAN_1000KBPS) break;
 
+        EEPROM.write(REG_CAN_BAUD_RATE, i2cData[1]);
+
         CAN_SPEED canBaud = (enum CAN_SPEED)i2cData[1];
         mcp2515.reset();
         mcp2515.setBitrate(canBaud, MCP_8MHZ);
         mcp2515.setNormalMode();
 
-        EEPROM.write(REG_CAN_BAUD_RATE, i2cData[1]);
         break;
     }
 
     case REG_SEND_FRAME: {
         if (i2cReceivedLength != I2C_DATA_LENGTH) break;
-        if (i2cData[CAN_FRAME_BIT_DATA_LENGTH + 1] > CAN_DATA_SIZE) break;
+        if (i2cData[CAN_FRAME_BIT_DATA_LENGTH + 1] > CAN_DATA_SIZE || i2cData[CAN_FRAME_BIT_DATA_LENGTH + 1] < 0) break;
         if (getCheckSum(i2cData + 1, CAN_FRAME_SIZE - 1) != i2cData[CAN_FRAME_BIT_CHECKSUM + 1]) break;
 
         u32 frameId =
@@ -165,9 +166,13 @@ void loop()
             i2cData[CAN_FRAME_BIT_ID_2 + 1] << 8 |
             i2cData[CAN_FRAME_BIT_ID_3 + 1];
 
+        if (i2cData[CAN_FRAME_BIT_IS_EXT + 1]) frameId |= CAN_EFF_FLAG;
+        if (i2cData[CAN_FRAME_BIT_IS_RTR + 1]) frameId |= CAN_RTR_FLAG;
+
         struct can_frame frame = { .can_id = frameId, .can_dlc = i2cData[CAN_FRAME_BIT_DATA_LENGTH + 1] };
         memcpy(frame.data, &i2cData[CAN_FRAME_BIT_DATA_0 + 1], CAN_DATA_SIZE);
         mcp2515.sendMessage(&frame);
+
         break;
     }
 
@@ -191,6 +196,8 @@ void loop()
         i2cFrameToSend[CAN_FRAME_BIT_ID_1] = (frame->canId >> 16) & 0xFF;
         i2cFrameToSend[CAN_FRAME_BIT_ID_2] = (frame->canId >> 8) & 0xFF;
         i2cFrameToSend[CAN_FRAME_BIT_ID_3] = frame->canId & 0xFF;
+        i2cFrameToSend[CAN_FRAME_BIT_IS_EXT] = frame->isExtended;
+        i2cFrameToSend[CAN_FRAME_BIT_IS_RTR] = frame->isRemoteRequest;
         i2cFrameToSend[CAN_FRAME_BIT_DATA_LENGTH] = frame->dataLength;
         memcpy(&i2cFrameToSend[CAN_FRAME_BIT_DATA_0], frame->data, frame->dataLength);
         i2cFrameToSend[CAN_FRAME_BIT_CHECKSUM] = getCheckSum(i2cFrameToSend, CAN_FRAME_SIZE - 1);
@@ -334,6 +341,11 @@ void receiveCanFrame()
     if (canFramesCount == CAN_FRAMES_BUFFER_SIZE) removeOldFrames();
 
     CanFrame frame = { };
+
+    frame.isExtended = received.can_id & CAN_EFF_FLAG;
+    frame.isRemoteRequest = received.can_id & CAN_RTR_FLAG;
+    received.can_id &= ~(CAN_EFF_FLAG | CAN_RTR_FLAG);
+
     frame.canId = received.can_id;
     frame.dataLength = received.can_dlc;
     memcpy(frame.data, received.data, CAN_DATA_SIZE);
