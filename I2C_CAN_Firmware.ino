@@ -1,3 +1,4 @@
+#include <avr/wdt.h>
 #include <SPI.h>
 #include <mcp2515.h>
 #include <SBWire.h>
@@ -11,7 +12,7 @@
 #define CAN_FRAMES_INDEX_SIZE 16    // has to be power of two for hashing to work
 #define CAN_FRAMES_PRUNE_TIME 15000
 #else
-#define CAN_FRAMES_BUFFER_SIZE 32
+#define CAN_FRAMES_BUFFER_SIZE 24
 #define CAN_FRAMES_INDEX_SIZE 64    // has to be power of two for hashing to work
 #define CAN_FRAMES_PRUNE_TIME 5000
 #endif
@@ -31,6 +32,12 @@ volatile u8 i2cReceiveRejected = FALSE;
 volatile u8 i2cReadRequest = NULL;
 u8 i2cFrameToSend[CAN_FRAME_SIZE];
 u8 i2cData[I2C_DATA_LENGTH];
+
+void forceSystemReset() {
+    MCUSR = 0;
+    wdt_enable(WDTO_250MS);
+    while (1);
+}
 
 u8 getCheckSum(u8* data, int length)
 {
@@ -131,7 +138,7 @@ void loop()
     case REG_I2C_ADDRESS: {
         if (i2cReceivedLength != 2) break;
         EEPROM.write(REG_I2C_ADDRESS, i2cData[1]);
-        while (TRUE);
+        forceSystemReset();
         break;
     }
 
