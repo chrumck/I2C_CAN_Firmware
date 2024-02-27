@@ -67,8 +67,19 @@ void setup()
 
     if (EEPROM.read(REG_I2C_ADDRESS_SET) != REG_I2C_ADDRESS_SET_VALUE)
     {
-        EEPROM.write(REG_I2C_ADDRESS_SET, REG_I2C_ADDRESS_SET_VALUE);
         EEPROM.write(REG_I2C_ADDRESS, DEFAULT_I2C_ADDRESS);
+        EEPROM.write(REG_CAN_BAUD_RATE, CAN_500KBPS);
+
+        for (int i = 0; i < 5; i++) EEPROM.write(REG_MASK0 + i, 0);
+        for (int i = 0; i < 5; i++) EEPROM.write(REG_MASK1 + i, 0);
+        for (int i = 0; i < 5; i++) EEPROM.write(REG_FILT0 + i, 0);
+        for (int i = 0; i < 5; i++) EEPROM.write(REG_FILT1 + i, 0);
+        for (int i = 0; i < 5; i++) EEPROM.write(REG_FILT2 + i, 0);
+        for (int i = 0; i < 5; i++) EEPROM.write(REG_FILT3 + i, 0);
+        for (int i = 0; i < 5; i++) EEPROM.write(REG_FILT4 + i, 0);
+        for (int i = 0; i < 5; i++) EEPROM.write(REG_FILT5 + i, 0);
+
+        EEPROM.write(REG_I2C_ADDRESS_SET, REG_I2C_ADDRESS_SET_VALUE);
     }
 
     // I2C setup
@@ -126,7 +137,7 @@ void setup()
     if (i2cReceivedLength == 1) i2cReadRequest = _register;\
     if (i2cReceivedLength != 7) break;\
     if (getCheckSum(i2cData + 1, 5) != i2cData[6]) break;\
-    for (int i = 0; i < 5; i++) EEPROM.write(_register + i, i2cData[1 + i]);\
+    for (int i = 0; i < 5; i++) EEPROM.write(_register + i, i2cData[i + 1]);\
     u32 newMaskOrFilter = i2cData[2] << 24 | i2cData[3] << 16 | i2cData[4] << 8 | i2cData[5];\
 
 void loop()

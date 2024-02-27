@@ -63,6 +63,6 @@ typedef struct {
 #define REG_FILT5         0XC0
 
 #define REG_I2C_ADDRESS_SET          0X51
-#define REG_I2C_ADDRESS_SET_VALUE    0x5A
+#define REG_I2C_ADDRESS_SET_VALUE    0x5B
 
 #endif
