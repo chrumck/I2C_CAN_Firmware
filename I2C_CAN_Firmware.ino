@@ -74,8 +74,8 @@ void setup()
 
     SPI.begin();
 
-    MCP2515::ERROR error = MCP2515::ERROR_OK;
-    while (error != MCP2515::ERROR_OK)
+    MCP2515::ERROR error;
+    do
     {
         error = mcp2515.reset();
         if (error != MCP2515::ERROR_OK) {
@@ -96,7 +96,7 @@ void setup()
             Serial.print("MCP2515 setNormalMode failed with error:");
             Serial.println(error);
         }
-    }
+    } while (error != MCP2515::ERROR_OK);
 
     Serial.print("MCP2515 setup successful. Baud rate:");
     Serial.println(canBaud);
