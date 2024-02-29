@@ -1,3 +1,4 @@
+#include <avr/io.h>
 #include <avr/wdt.h>
 #include <SPI.h>
 #include <mcp2515.h>
@@ -5,7 +6,7 @@
 #include <EEPROM.h>
 #include "I2C_CAN_dfs.h"
 
-#define IS_DEBUG
+// #define IS_DEBUG
 
 #ifdef IS_DEBUG
 #define CAN_FRAMES_BUFFER_SIZE 4
@@ -34,7 +35,7 @@ u8 i2cFrameToSend[CAN_FRAME_SIZE];
 u8 i2cData[I2C_DATA_LENGTH];
 
 void forceSystemReset() {
-    MCUSR = 0;
+    wdt_reset();
     wdt_enable(WDTO_250MS);
     while (1);
 }
@@ -59,6 +60,8 @@ MCP2515 mcp2515(MCP2515_CS_PIN, MCP2515_SPI_FREQUENCY, &SPI);
 
 void setup()
 {
+    wdt_disable();
+
     Serial.begin(SERIAL_BAUD_RATE);
 
 #ifdef IS_DEBUG
