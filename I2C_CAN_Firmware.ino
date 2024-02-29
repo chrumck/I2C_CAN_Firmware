@@ -20,6 +20,7 @@
 
 #define SERIAL_BAUD_RATE 115200
 #define MCP2515_SPI_FREQUENCY 8E6
+#define MCP2515_QUARTZ_FREQUENCY MCP_16MHZ
 #define MCP2515_CS_PIN 10
 
 CanFrame canFramesBuffer[CAN_FRAMES_BUFFER_SIZE] = { 0 };
@@ -107,7 +108,7 @@ void setup()
             continue;
         }
 
-        error = mcp2515.setBitrate(canBaud, MCP_16MHZ);
+        error = mcp2515.setBitrate(canBaud, MCP2515_QUARTZ_FREQUENCY);
         if (error != MCP2515::ERROR_OK) {
             Serial.print("MCP2515 setBitrate failed with error:");
             Serial.println(error);
@@ -172,7 +173,7 @@ void loop()
 
         CAN_SPEED canBaud = (enum CAN_SPEED)i2cData[1];
         mcp2515.reset();
-        mcp2515.setBitrate(canBaud, MCP_8MHZ);
+        mcp2515.setBitrate(canBaud, MCP2515_QUARTZ_FREQUENCY);
         mcp2515.setNormalMode();
 
         break;
