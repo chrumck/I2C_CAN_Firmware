@@ -53,14 +53,10 @@ u8 getCheckSum(u8* data, int length)
 }
 
 u32 getMaskOrFilterValue(u8 regAddress) {
-    u32 value = EEPROM.read(regAddress + 1) << 24 |
+    return EEPROM.read(regAddress + 1) << 24 |
         EEPROM.read(regAddress + 2) << 16 |
         EEPROM.read(regAddress + 3) << 8 |
         EEPROM.read(regAddress + 4);
-
-    Serial.print("mask or filter value:0x");
-    Serial.println(value, 16);
-    return value;
 }
 
 MCP_CAN mcp2515(MCP2515_CS_PIN);
@@ -74,9 +70,6 @@ void setup()
 #ifdef IS_DEBUG
     delay(5000);
 #endif
-
-    Serial.println("Starting...");
-
     pinMode(LED_PIN, OUTPUT);
 
     for (int i = 0; i < 20; i++)
@@ -102,13 +95,9 @@ void setup()
         EEPROM.write(REG_I2C_ADDRESS_SET, REG_I2C_ADDRESS_SET_VALUE);
     }
 
-    Serial.println("Setting up I2C...");
-
     Wire.begin(EEPROM.read(REG_I2C_ADDRESS));
     Wire.onReceive(receiveFromI2C);
     Wire.onRequest(sendToI2C);
-
-    Serial.println("Setting up CAN...");
 
     int eepromCanSpeed = EEPROM.read(REG_CAN_BAUD_RATE);
     int canSpeed = (eepromCanSpeed >= CAN_5KBPS && eepromCanSpeed <= CAN_1000KBPS) ? eepromCanSpeed : CAN_500KBPS;
