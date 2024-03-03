@@ -10,6 +10,8 @@ The dictionary can hold up to `CAN_FRAMES_BUFFER_SIZE` frames with unique frame 
 
 Frames which are not retrieved through I2C for a while are periodically removed from the dictionary, giving a chance to frames ids which were not in the dictionary to take their place.
 
+The firmware sets the CAN controller to listen-only mode. Sending frames is not allowed.
+
 The firmware has been developed as part of the [KnurDash](https://github.com/chrumck/KnurDash) project.
 
 ---
@@ -18,7 +20,7 @@ The firmware has been developed as part of the [KnurDash](https://github.com/chr
 
 This project requires two libraries to be installed prior to flashing the controller:
 
-- **[Longan Labs CAN BUS MCP2515 Library](https://github.com/Longan-Labs/Aruino_CAN_BUS_MCP2515)** - Driver for the MPC2515 CAN Bus transceiver.
+- **[autowp CAN BUS MCP2515 Library](https://github.com/autowp/arduino-mcp2515)** - Driver for the MPC2515 CAN Bus transceiver.
 - **[SBWire](https://github.com/freespace/SBWire)** - Replacement for the default Arduino Wire (i<sup>2</sup>c) library with basic timeouts to fix the board from occasionally not correctly responding to messages.
 
 ---
@@ -44,7 +46,6 @@ The following table contains the various registers that are available on the i2c
 | 0x01    | Addr  | 1 Byte   | W    | 0x25          | I2C slave Address              |
 | 0x02    | DNUM  | 1 Byte   | R    | 0             | No. of CAN frames in RX buffer |
 | 0x03    | BAUD  | 1 Byte   | W/R  | 16(500kb/s)   | Set the CAN baudrate           |
-| 0x30    | Send  | 16 Bytes | W    | -             | Send CAN frame                 |
 | 0x40    | Recv  | 16 Bytes | R    | -             | Read CAN frame                 |
 | 0x60    | Mask0 | 5 Bytes  | W/R  | 0             | Mask 0                         |
 | 0x65    | Mask1 | 5 Bytes  | W/R  | 0             | Mask 1                         |
@@ -64,28 +65,3 @@ If data is requested without any additional bytes passed, the code defaults back
 ### No Frames Available
 
 If the oldest frame, or the frame for the given id, is not available, the module will respond with four bytes representing the `NO_FRAMES_AVAILABLE_RESPONSE` message.
-
----
-
-## 0x03 - CAN Baud Rates
-
-| Value  | CAN Baudrate (kb/s) |
-| ------ | ------------------- |
-| 1      | 5                   |
-| 2      | 10                  |
-| 3      | 20                  |
-| 4      | 25                  |
-| 5      | 31.2                |
-| 6      | 33                  |
-| 7      | 40                  |
-| 8      | 50                  |
-| 9      | 80                  |
-| 10     | 83.3                |
-| 11     | 95                  |
-| 12     | 100                 |
-| 13     | 125                 |
-| 14     | 200                 |
-| 15     | 250                 |
-| **16** | **500** (default)   |
-| 17     | 666                 |
-| 18     | 1000                |
