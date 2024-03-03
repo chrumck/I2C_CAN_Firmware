@@ -37,7 +37,7 @@ volatile u8 i2cReceivedLength = 0;
 volatile u8 i2cReceiveRejected = FALSE;
 volatile u8 i2cReadRequest = NULL;
 u8 i2cFrameToSend[CAN_FRAME_SIZE];
-u8 i2cData[I2C_DATA_LENGTH];
+u8 i2cData[I2C_DATA_MAX_LENGTH];
 
 void forceSystemReset() {
     wdt_reset();
@@ -181,9 +181,9 @@ void setup()
             continue;
         }
 
-        error = mcp2515.setNormalMode();
+        error = mcp2515.setListenOnlyMode();
         if (error != MCP2515::ERROR_OK) {
-            Serial.print("MCP2515 setNormalMode failed with error:");
+            Serial.print("MCP2515 setListenOnlyMode failed with error:");
             Serial.println(error);
         }
     } while (error != MCP2515::ERROR_OK);
@@ -196,7 +196,7 @@ void setup()
 
 #define processMaskOrFilterRequest(_register)\
     if (i2cReceivedLength == 1) i2cReadRequest = _register;\
-    if (i2cReceivedLength != 7) break;\
+    if (i2cReceivedLength != I2C_DATA_MAX_LENGTH) break;\
     if (getCheckSum(i2cData + 1, 5) != i2cData[6]) break;\
     for (int i = 0; i < 5; i++) EEPROM.write(_register + i, i2cData[i + 1]);\
     u32 newMaskOrFilter = i2cData[2] << 24 | i2cData[3] << 16 | i2cData[4] << 8 | i2cData[5];\
@@ -205,11 +205,12 @@ void loop()
 {
     receiveCanFrame();
 
-    if (i2cReceivedLength < 1 || i2cReceivedLength > I2C_DATA_LENGTH) return;
+    if (i2cReceivedLength < 1 || i2cReceivedLength > I2C_DATA_MAX_LENGTH) return;
 
     switch (i2cData[0]) {
 
     case REG_I2C_ADDRESS: {
+        if (i2cReceivedLength == 1) i2cReadRequest = REG_I2C_ADDRESS;
         if (i2cReceivedLength != 2) break;
         EEPROM.write(REG_I2C_ADDRESS, i2cData[1]);
         forceSystemReset();
@@ -228,27 +229,6 @@ void loop()
 
         EEPROM.write(REG_CAN_BAUD_RATE, i2cData[1]);
         forceSystemReset();
-        break;
-    }
-
-    case REG_SEND_FRAME: {
-        if (i2cReceivedLength != I2C_DATA_LENGTH) break;
-        if (i2cData[CAN_FRAME_BIT_DATA_LENGTH + 1] > CAN_DATA_SIZE || i2cData[CAN_FRAME_BIT_DATA_LENGTH + 1] < 0) break;
-        if (getCheckSum(i2cData + 1, CAN_FRAME_SIZE - 1) != i2cData[CAN_FRAME_BIT_CHECKSUM + 1]) break;
-
-        u32 frameId =
-            i2cData[CAN_FRAME_BIT_ID_0 + 1] << 24 |
-            i2cData[CAN_FRAME_BIT_ID_1 + 1] << 16 |
-            i2cData[CAN_FRAME_BIT_ID_2 + 1] << 8 |
-            i2cData[CAN_FRAME_BIT_ID_3 + 1];
-
-        if (i2cData[CAN_FRAME_BIT_IS_EXT + 1]) frameId |= CAN_EFF_FLAG;
-        if (i2cData[CAN_FRAME_BIT_IS_RTR + 1]) frameId |= CAN_RTR_FLAG;
-
-        struct can_frame frame = { .can_id = frameId, .can_dlc = i2cData[CAN_FRAME_BIT_DATA_LENGTH + 1] };
-        memcpy(frame.data, &i2cData[CAN_FRAME_BIT_DATA_0 + 1], CAN_DATA_SIZE);
-        mcp2515.sendMessage(&frame);
-
         break;
     }
 
@@ -284,51 +264,51 @@ void loop()
     case REG_MASK0: {
         processMaskOrFilterRequest(REG_MASK0);
         mcp2515.setFilterMask(MCP2515::MASK0, i2cData[1], newMaskOrFilter);
-        mcp2515.setNormalMode();
+        mcp2515.setListenOnlyMode();
         break;
     }
 
     case REG_MASK1: {
         processMaskOrFilterRequest(REG_MASK1);
         mcp2515.setFilterMask(MCP2515::MASK1, i2cData[1], newMaskOrFilter);
-        mcp2515.setNormalMode();
+        mcp2515.setListenOnlyMode();
         break;
     }
 
     case REG_FILT0: {
         processMaskOrFilterRequest(REG_FILT0);
         mcp2515.setFilter(MCP2515::RXF0, i2cData[1], newMaskOrFilter);
-        mcp2515.setNormalMode();
+        mcp2515.setListenOnlyMode();
         break;
     }
     case REG_FILT1: {
         processMaskOrFilterRequest(REG_FILT1);
         mcp2515.setFilter(MCP2515::RXF1, i2cData[1], newMaskOrFilter);
-        mcp2515.setNormalMode();
+        mcp2515.setListenOnlyMode();
         break;
     }
     case REG_FILT2: {
         processMaskOrFilterRequest(REG_FILT2);
         mcp2515.setFilter(MCP2515::RXF2, i2cData[1], newMaskOrFilter);
-        mcp2515.setNormalMode();
+        mcp2515.setListenOnlyMode();
         break;
     }
     case REG_FILT3: {
         processMaskOrFilterRequest(REG_FILT3);
         mcp2515.setFilter(MCP2515::RXF3, i2cData[1], newMaskOrFilter);
-        mcp2515.setNormalMode();
+        mcp2515.setListenOnlyMode();
         break;
     }
     case REG_FILT4: {
         processMaskOrFilterRequest(REG_FILT4);
         mcp2515.setFilter(MCP2515::RXF4, i2cData[1], newMaskOrFilter);
-        mcp2515.setNormalMode();
+        mcp2515.setListenOnlyMode();
         break;
     }
     case REG_FILT5: {
         processMaskOrFilterRequest(REG_FILT5);
         mcp2515.setFilter(MCP2515::RXF5, i2cData[1], newMaskOrFilter);
-        mcp2515.setNormalMode();
+        mcp2515.setListenOnlyMode();
         break;
     }
 
@@ -341,12 +321,12 @@ void loop()
 
 void receiveFromI2C(int howMany)
 {
-    if (i2cReceivedLength < 0 || i2cReceivedLength > I2C_DATA_LENGTH) i2cReceivedLength = 0;
+    if (i2cReceivedLength < 0 || i2cReceivedLength > I2C_DATA_MAX_LENGTH) i2cReceivedLength = 0;
 
     i2cReceiveRejected = i2cReceivedLength != 0 ? TRUE : FALSE;
 
     while (Wire.available() > 0) {
-        if (!i2cReceiveRejected && i2cReceivedLength < I2C_DATA_LENGTH) i2cData[i2cReceivedLength++] = Wire.read();
+        if (!i2cReceiveRejected && i2cReceivedLength < I2C_DATA_MAX_LENGTH) i2cData[i2cReceivedLength++] = Wire.read();
         else Wire.read();
     }
 }
@@ -377,6 +357,11 @@ void sendToI2C() {
     }
 
     switch (i2cReadRequest) {
+
+    case REG_I2C_ADDRESS: {
+        Wire.write(EEPROM.read(REG_I2C_ADDRESS));
+        break;
+    }
 
     case REG_CAN_BAUD_RATE: {
         Wire.write(EEPROM.read(REG_CAN_BAUD_RATE));
@@ -436,7 +421,7 @@ void receiveCanFrame()
     frame.timestamp = millis();
 
     saveFrame(&frame);
-    }
+}
 
 #define getIndexPosition(_searchedCanId)\
     u8 indexPosition = _searchedCanId & canFramesHashBase;\
@@ -554,7 +539,7 @@ CanFrame* getFrame(u32 frameId) {
 
         frame->isSent = TRUE;
         return frame;
-        }
+    }
 
     CanFrame* oldestFrame = NULL;
     for (u8 i = 0; i < CAN_FRAMES_BUFFER_SIZE; i++)
@@ -579,5 +564,5 @@ CanFrame* getFrame(u32 frameId) {
 
     if (oldestFrame != NULL) oldestFrame->isSent = TRUE;
     return oldestFrame;
-    }
+}
 
