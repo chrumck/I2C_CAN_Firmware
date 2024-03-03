@@ -106,7 +106,6 @@ void setup()
     {
         delay(1000);
         LEDTOGGLE();
-        Serial.println("Failed to start CAN bus, retrying...");
     }
 
     mcp2515.init_Mask(0, EEPROM.read(REG_MASK0), getMaskOrFilterValue(REG_MASK0));
@@ -117,9 +116,6 @@ void setup()
     mcp2515.init_Filt(3, EEPROM.read(REG_FILT3), getMaskOrFilterValue(REG_FILT3));
     mcp2515.init_Filt(4, EEPROM.read(REG_FILT4), getMaskOrFilterValue(REG_FILT4));
     mcp2515.init_Filt(5, EEPROM.read(REG_FILT5), getMaskOrFilterValue(REG_FILT5));
-
-    Serial.print("MCP2515 setup successful. Baud rate:");
-    Serial.println(canSpeed);
 
     LEDON();
 }
