@@ -1,11 +1,11 @@
 #include <avr/wdt.h>
 #include <SPI.h>
-#include <mcp2515.h>
+#include <mcp_can.h>
 #include <SBWire.h>
 #include <EEPROM.h>
 #include "I2C_CAN_dfs.h"
 
-// #define IS_DEBUG
+#define IS_DEBUG
 
 #ifdef IS_DEBUG
 #define CAN_FRAMES_BUFFER_SIZE 4
@@ -18,8 +18,6 @@
 #endif
 
 #define SERIAL_BAUD_RATE 115200
-#define MCP2515_SPI_FREQUENCY 10E6
-#define MCP2515_QUARTZ_FREQUENCY MCP_16MHZ
 #define MCP2515_CS_PIN 9
 
 #define LED_PIN 3
@@ -65,7 +63,7 @@ u32 getMaskOrFilterValue(u8 regAddress) {
     return value;
 }
 
-MCP2515 mcp2515(MCP2515_CS_PIN, MCP2515_SPI_FREQUENCY, &SPI);
+MCP_CAN mcp2515(MCP2515_CS_PIN);
 
 void setup()
 {
@@ -106,93 +104,30 @@ void setup()
 
     Serial.println("Setting up I2C...");
 
-    // I2C setup
     Wire.begin(EEPROM.read(REG_I2C_ADDRESS));
     Wire.onReceive(receiveFromI2C);
     Wire.onRequest(sendToI2C);
 
     Serial.println("Setting up CAN...");
 
-    SPI.begin();
-
     int eepromCanSpeed = EEPROM.read(REG_CAN_BAUD_RATE);
-    CAN_SPEED canSpeed = (eepromCanSpeed >= CAN_5KBPS && eepromCanSpeed <= CAN_1000KBPS) ? (enum CAN_SPEED)eepromCanSpeed : CAN_500KBPS;
-    MCP2515::ERROR error = MCP2515::ERROR_OK;
-    do
+    int canSpeed = (eepromCanSpeed >= CAN_5KBPS && eepromCanSpeed <= CAN_1000KBPS) ? eepromCanSpeed : CAN_500KBPS;
+
+    while (mcp2515.begin(canSpeed) != CAN_OK)
     {
-        if (error != MCP2515::ERROR_OK) { delay(1000); }
+        delay(1000);
+        LEDTOGGLE();
+        Serial.println("Failed to start CAN bus, retrying...");
+    }
 
-        error = mcp2515.reset();
-        if (error != MCP2515::ERROR_OK) {
-            Serial.print("MCP2515 reset failed with error:");
-            Serial.println(error);
-            continue;
-        }
-
-        error = mcp2515.setBitrate(canSpeed, MCP2515_QUARTZ_FREQUENCY);
-        if (error != MCP2515::ERROR_OK) {
-            Serial.print("MCP2515 setBitrate failed with error:");
-            Serial.println(error);
-            continue;
-        }
-
-        error = mcp2515.setFilterMask(MCP2515::MASK0, EEPROM.read(REG_MASK0), getMaskOrFilterValue(REG_MASK0));
-        if (error != MCP2515::ERROR_OK) {
-            Serial.print("MCP2515 setFilterMask 0 failed:");
-            Serial.println(error);
-            continue;
-        }
-
-        error = mcp2515.setFilterMask(MCP2515::MASK1, EEPROM.read(REG_MASK1), getMaskOrFilterValue(REG_MASK1));
-        if (error != MCP2515::ERROR_OK) {
-            Serial.print("MCP2515 setFilterMask 1 failed:");
-            Serial.println(error);
-            continue;
-        }
-
-        error = mcp2515.setFilter(MCP2515::RXF0, EEPROM.read(REG_FILT0), getMaskOrFilterValue(REG_FILT0));
-        if (error != MCP2515::ERROR_OK) {
-            Serial.print("MCP2515 setFilter 0 failed:");
-            Serial.println(error);
-            continue;
-        }
-        error = mcp2515.setFilter(MCP2515::RXF1, EEPROM.read(REG_FILT1), getMaskOrFilterValue(REG_FILT1));
-        if (error != MCP2515::ERROR_OK) {
-            Serial.print("MCP2515 setFilter 1 failed:");
-            Serial.println(error);
-            continue;
-        }
-        error = mcp2515.setFilter(MCP2515::RXF2, EEPROM.read(REG_FILT2), getMaskOrFilterValue(REG_FILT2));
-        if (error != MCP2515::ERROR_OK) {
-            Serial.print("MCP2515 setFilter 2 failed:");
-            Serial.println(error);
-            continue;
-        }
-        error = mcp2515.setFilter(MCP2515::RXF3, EEPROM.read(REG_FILT3), getMaskOrFilterValue(REG_FILT3));
-        if (error != MCP2515::ERROR_OK) {
-            Serial.print("MCP2515 setFilter 3 failed:");
-            Serial.println(error);
-            continue;
-        }
-        error = mcp2515.setFilter(MCP2515::RXF4, EEPROM.read(REG_FILT4), getMaskOrFilterValue(REG_FILT4));
-        if (error != MCP2515::ERROR_OK) {
-            Serial.print("MCP2515 setFilter 4 failed:");
-            Serial.println(error);
-            continue;
-        }
-        error = mcp2515.setFilter(MCP2515::RXF5, EEPROM.read(REG_FILT5), getMaskOrFilterValue(REG_FILT5));
-        if (error != MCP2515::ERROR_OK) {
-            Serial.print("MCP2515 setFilter 5 failed:");
-            Serial.println(error);
-            continue;
-        }
-
-        error = mcp2515.setListenOnlyMode();
-        if (error != MCP2515::ERROR_OK) {
-            Serial.print("MCP2515 setListenOnlyMode failed with error:");
-            Serial.println(error);
-        }
-    } while (error != MCP2515::ERROR_OK);
+    mcp2515.init_Mask(0, EEPROM.read(REG_MASK0), getMaskOrFilterValue(REG_MASK0));
+    mcp2515.init_Mask(1, EEPROM.read(REG_MASK1), getMaskOrFilterValue(REG_MASK1));
+    mcp2515.init_Filt(0, EEPROM.read(REG_FILT0), getMaskOrFilterValue(REG_FILT0));
+    mcp2515.init_Filt(1, EEPROM.read(REG_FILT1), getMaskOrFilterValue(REG_FILT1));
+    mcp2515.init_Filt(2, EEPROM.read(REG_FILT2), getMaskOrFilterValue(REG_FILT2));
+    mcp2515.init_Filt(3, EEPROM.read(REG_FILT3), getMaskOrFilterValue(REG_FILT3));
+    mcp2515.init_Filt(4, EEPROM.read(REG_FILT4), getMaskOrFilterValue(REG_FILT4));
+    mcp2515.init_Filt(5, EEPROM.read(REG_FILT5), getMaskOrFilterValue(REG_FILT5));
 
     Serial.print("MCP2515 setup successful. Baud rate:");
     Serial.println(canSpeed);
@@ -269,52 +204,44 @@ void loop()
 
     case REG_MASK0: {
         processMaskOrFilterRequest(REG_MASK0);
-        mcp2515.setFilterMask(MCP2515::MASK0, i2cData[1], newMaskOrFilter);
-        mcp2515.setListenOnlyMode();
+        mcp2515.init_Mask(0, i2cData[1], newMaskOrFilter);
         break;
     }
 
     case REG_MASK1: {
         processMaskOrFilterRequest(REG_MASK1);
-        mcp2515.setFilterMask(MCP2515::MASK1, i2cData[1], newMaskOrFilter);
-        mcp2515.setListenOnlyMode();
+        mcp2515.init_Mask(1, i2cData[1], newMaskOrFilter);
         break;
     }
 
     case REG_FILT0: {
         processMaskOrFilterRequest(REG_FILT0);
-        mcp2515.setFilter(MCP2515::RXF0, i2cData[1], newMaskOrFilter);
-        mcp2515.setListenOnlyMode();
+        mcp2515.init_Filt(0, i2cData[1], newMaskOrFilter);
         break;
     }
     case REG_FILT1: {
         processMaskOrFilterRequest(REG_FILT1);
-        mcp2515.setFilter(MCP2515::RXF1, i2cData[1], newMaskOrFilter);
-        mcp2515.setListenOnlyMode();
+        mcp2515.init_Filt(1, i2cData[1], newMaskOrFilter);
         break;
     }
     case REG_FILT2: {
         processMaskOrFilterRequest(REG_FILT2);
-        mcp2515.setFilter(MCP2515::RXF2, i2cData[1], newMaskOrFilter);
-        mcp2515.setListenOnlyMode();
+        mcp2515.init_Filt(2, i2cData[1], newMaskOrFilter);
         break;
     }
     case REG_FILT3: {
         processMaskOrFilterRequest(REG_FILT3);
-        mcp2515.setFilter(MCP2515::RXF3, i2cData[1], newMaskOrFilter);
-        mcp2515.setListenOnlyMode();
+        mcp2515.init_Filt(3, i2cData[1], newMaskOrFilter);
         break;
     }
     case REG_FILT4: {
         processMaskOrFilterRequest(REG_FILT4);
-        mcp2515.setFilter(MCP2515::RXF4, i2cData[1], newMaskOrFilter);
-        mcp2515.setListenOnlyMode();
+        mcp2515.init_Filt(4, i2cData[1], newMaskOrFilter);
         break;
     }
     case REG_FILT5: {
         processMaskOrFilterRequest(REG_FILT5);
-        mcp2515.setFilter(MCP2515::RXF5, i2cData[1], newMaskOrFilter);
-        mcp2515.setListenOnlyMode();
+        mcp2515.init_Filt(5, i2cData[1], newMaskOrFilter);
         break;
     }
 
@@ -400,30 +327,15 @@ void sendToI2C() {
 
 void receiveCanFrame()
 {
-    struct can_frame received = { };
-    MCP2515::ERROR readResult = mcp2515.readMessage(&received);
-
-    if (readResult == MCP2515::ERROR_NOMSG) { return; }
-
-    if (readResult != MCP2515::ERROR_OK) {
-#ifdef IS_DEBUG
-        Serial.print("Receiving CAN frame failed with error:");
-        Serial.println(readResult);
-#endif
-        return;
-    }
+    if (mcp2515.checkReceive() != CAN_MSGAVAIL) return;
 
     if (canFramesCount == CAN_FRAMES_BUFFER_SIZE) removeOldFrames();
 
     CanFrame frame = { };
-
-    frame.isExtended = received.can_id & CAN_EFF_FLAG;
-    frame.isRemoteRequest = received.can_id & CAN_RTR_FLAG;
-    received.can_id &= ~(CAN_EFF_FLAG | CAN_RTR_FLAG);
-
-    frame.canId = received.can_id;
-    frame.dataLength = received.can_dlc;
-    memcpy(frame.data, received.data, CAN_DATA_SIZE);
+    mcp2515.readMsgBuf(&frame.dataLength, frame.data);
+    frame.canId = mcp2515.getCanId();
+    frame.isExtended = mcp2515.isExtendedFrame();
+    frame.isRemoteRequest = mcp2515.isRemoteRequest();
     frame.timestamp = millis();
 
     saveFrame(&frame);
