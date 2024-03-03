@@ -117,6 +117,9 @@ void setup()
     mcp2515.init_Filt(4, EEPROM.read(REG_FILT4), getMaskOrFilterValue(REG_FILT4));
     mcp2515.init_Filt(5, EEPROM.read(REG_FILT5), getMaskOrFilterValue(REG_FILT5));
 
+    Serial.print("MCP2515 setup successful. Baud rate:");
+    Serial.println(canSpeed);
+
     LEDON();
 }
 
