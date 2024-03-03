@@ -74,8 +74,10 @@ void setup()
     Serial.begin(SERIAL_BAUD_RATE);
 
 #ifdef IS_DEBUG
-    while (!Serial) {}
+    delay(5000);
 #endif
+
+    Serial.print("Starting...");
 
     pinMode(LED_PIN, OUTPUT);
 
@@ -102,10 +104,14 @@ void setup()
         EEPROM.write(REG_I2C_ADDRESS_SET, REG_I2C_ADDRESS_SET_VALUE);
     }
 
+    Serial.print("Setting up I2C...");
+
     // I2C setup
     Wire.begin(EEPROM.read(REG_I2C_ADDRESS));
     Wire.onReceive(receiveFromI2C);
     Wire.onRequest(sendToI2C);
+
+    Serial.print("Setting up CAN...");
 
     SPI.begin();
 
