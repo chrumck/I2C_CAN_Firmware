@@ -18,7 +18,7 @@
 #endif
 
 #define SERIAL_BAUD_RATE 115200
-#define MCP2515_SPI_FREQUENCY 8E6
+#define MCP2515_SPI_FREQUENCY 10E6
 #define MCP2515_QUARTZ_FREQUENCY MCP_16MHZ
 #define MCP2515_CS_PIN 9
 
@@ -77,7 +77,7 @@ void setup()
     delay(5000);
 #endif
 
-    Serial.print("Starting...");
+    Serial.println("Starting...");
 
     pinMode(LED_PIN, OUTPUT);
 
@@ -104,14 +104,14 @@ void setup()
         EEPROM.write(REG_I2C_ADDRESS_SET, REG_I2C_ADDRESS_SET_VALUE);
     }
 
-    Serial.print("Setting up I2C...");
+    Serial.println("Setting up I2C...");
 
     // I2C setup
     Wire.begin(EEPROM.read(REG_I2C_ADDRESS));
     Wire.onReceive(receiveFromI2C);
     Wire.onRequest(sendToI2C);
 
-    Serial.print("Setting up CAN...");
+    Serial.println("Setting up CAN...");
 
     SPI.begin();
 
