@@ -53,6 +53,7 @@ typedef struct {
 #define REG_CAN_BAUD_RATE 0X03
 
 #define REG_RECEIVE_FRAME 0X40
+
 #define REG_MASK0         0X60
 #define REG_MASK1         0X65
 #define REG_FILT0         0X70
