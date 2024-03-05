@@ -1,6 +1,6 @@
 #include <avr/wdt.h>
 #include <SPI.h>
-#include <mcp_can.h>
+#include <mcp_canbus.h>
 #include <SBWire.h>
 #include <EEPROM.h>
 #include "I2C_CAN_dfs.h"
@@ -470,5 +470,5 @@ CanFrame* getFrame(u32 frameId) {
 
     if (oldestFrame != NULL) oldestFrame->isSent = TRUE;
     return oldestFrame;
-}
+    }
 
