@@ -114,7 +114,7 @@ void setup()
 
     LEDON();
 
-    Serial.print("Setup successful. Baud rate:");
+    Serial.print("i2cCAN started. Baud rate:");
     Serial.println(canSpeed);
 }
 
