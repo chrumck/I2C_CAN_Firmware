@@ -23,7 +23,6 @@
 #define LED_PIN 3
 #define LEDON()     digitalWrite(LED_PIN, HIGH)
 #define LEDOFF()    digitalWrite(LED_PIN, LOW)
-#define LEDTOGGLE() digitalWrite(LED_PIN, 1 - digitalRead(LED_PIN))
 
 CanFrame canFramesBuffer[CAN_FRAMES_BUFFER_SIZE] = { 0 };
 CanFrameIndexEntry canFramesIndex[CAN_FRAMES_INDEX_SIZE] = { 0 };
@@ -72,12 +71,6 @@ void setup()
 #endif
     pinMode(LED_PIN, OUTPUT);
 
-    for (int i = 0; i < 20; i++)
-    {
-        LEDTOGGLE();
-        delay(20);
-    }
-
     if (EEPROM.read(REG_I2C_ADDRESS_SET) != REG_I2C_ADDRESS_SET_VALUE)
     {
         EEPROM.write(REG_I2C_ADDRESS, DEFAULT_I2C_ADDRESS);
@@ -95,17 +88,15 @@ void setup()
         EEPROM.write(REG_I2C_ADDRESS_SET, REG_I2C_ADDRESS_SET_VALUE);
     }
 
-    Wire.begin(EEPROM.read(REG_I2C_ADDRESS));
-    Wire.onReceive(receiveFromI2C);
-    Wire.onRequest(sendToI2C);
-
     int eepromCanSpeed = EEPROM.read(REG_CAN_BAUD_RATE);
     int canSpeed = (eepromCanSpeed >= CAN_5KBPS && eepromCanSpeed <= CAN_1000KBPS) ? eepromCanSpeed : CAN_500KBPS;
 
     while (mcp2515.begin(canSpeed) != CAN_OK)
     {
-        delay(1000);
-        LEDTOGGLE();
+        LEDON();
+        delay(100);
+        LEDOFF();
+        delay(900);
     }
 
     mcp2515.init_Mask(0, EEPROM.read(REG_MASK0), getMaskOrFilterValue(REG_MASK0));
@@ -117,10 +108,14 @@ void setup()
     mcp2515.init_Filt(4, EEPROM.read(REG_FILT4), getMaskOrFilterValue(REG_FILT4));
     mcp2515.init_Filt(5, EEPROM.read(REG_FILT5), getMaskOrFilterValue(REG_FILT5));
 
-    Serial.print("MCP2515 setup successful. Baud rate:");
-    Serial.println(canSpeed);
+    Wire.begin(EEPROM.read(REG_I2C_ADDRESS));
+    Wire.onReceive(receiveFromI2C);
+    Wire.onRequest(sendToI2C);
 
     LEDON();
+
+    Serial.print("Setup successful. Baud rate:");
+    Serial.println(canSpeed);
 }
 
 #define processMaskOrFilterRequest(_register)\
@@ -470,5 +465,5 @@ CanFrame* getFrame(u32 frameId) {
 
     if (oldestFrame != NULL) oldestFrame->isSent = TRUE;
     return oldestFrame;
-    }
+}
 
