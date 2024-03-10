@@ -31,7 +31,6 @@ u8 canFramesHashBase = CAN_FRAMES_INDEX_SIZE - 1;
 u8 canFramesCount = 0;
 
 volatile u8 i2cReceivedLength = 0;
-volatile u8 i2cReceiveRejected = FALSE;
 volatile u8 i2cReadRequest = NULL;
 u8 i2cFrameToSend[CAN_FRAME_SIZE];
 u8 i2cData[I2C_DATA_MAX_LENGTH];
@@ -129,7 +128,12 @@ void loop()
 {
     receiveCanFrame();
 
-    if (i2cReceivedLength < 1 || i2cReceivedLength > I2C_DATA_MAX_LENGTH) return;
+    if (i2cReceivedLength == 0) return;
+
+    if (i2cReceivedLength < 1 || i2cReceivedLength > I2C_DATA_MAX_LENGTH) {
+        i2cReceivedLength = 0;
+        return;
+    }
 
     switch (i2cData[0]) {
 
@@ -239,10 +243,13 @@ void receiveFromI2C(int howMany)
 {
     if (i2cReceivedLength < 0 || i2cReceivedLength > I2C_DATA_MAX_LENGTH) i2cReceivedLength = 0;
 
-    i2cReceiveRejected = i2cReceivedLength != 0 ? TRUE : FALSE;
+    if (i2cReceivedLength != 0) {
+        while (Wire.available() > 0) { Wire.read(); }
+        return;
+    }
 
     while (Wire.available() > 0) {
-        if (!i2cReceiveRejected && i2cReceivedLength < I2C_DATA_MAX_LENGTH) i2cData[i2cReceivedLength++] = Wire.read();
+        if (i2cReceivedLength < I2C_DATA_MAX_LENGTH) i2cData[i2cReceivedLength++] = Wire.read();
         else Wire.read();
     }
 }
@@ -256,14 +263,6 @@ void receiveFromI2C(int howMany)
 }\
 
 void sendToI2C() {
-    if (i2cReceiveRejected) {
-        Wire.write((RECEIVE_REJECTED_RESPONSE >> 24) & 0xFF);
-        Wire.write((RECEIVE_REJECTED_RESPONSE >> 16) & 0xFF);
-        Wire.write((RECEIVE_REJECTED_RESPONSE >> 8) & 0xFF);
-        Wire.write((RECEIVE_REJECTED_RESPONSE) & 0xFF);
-        return;
-    }
-
     if (i2cReceivedLength != 0) {
         Wire.write((RESPONSE_NOT_READY_RESPONSE >> 24) & 0xFF);
         Wire.write((RESPONSE_NOT_READY_RESPONSE >> 16) & 0xFF);
